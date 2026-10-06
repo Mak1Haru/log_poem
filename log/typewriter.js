@@ -189,8 +189,11 @@
     return;
   }
 
+  var isPart4Preview = document.documentElement.classList.contains(
+    "part-4-preview-root"
+  );
   var settings = {
-    initialDelay: 900,
+    initialDelay: isPart4Preview ? 140 : 900,
     characterMin: 64,
     characterRange: 24,
     part2CharacterMin: 82,
@@ -227,6 +230,7 @@
     part2SecondCharacterMin: 90,
     part2SecondCharacterRange: 28,
     part3IntroHold: 650,
+    part3ColorDelay: 8000,
     part3GroupLineHold: 360,
     part3GroupHold: 680,
     part3BeforeAssemble: 1350,
@@ -245,8 +249,8 @@
     part5CharacterMin: 78,
     part5CharacterRange: 26,
     part5AfterMelancholyPause: 1000,
-    part5SpinnerDiagonalDelay: 135,
-    part5SpinnerAxisDelay: 340,
+    part5SpinnerDiagonalDelay: 170,
+    part5SpinnerAxisDelay: 425,
     part5BeforeVanishPause: 2200,
     commaDelay: 180,
     sentenceDelay: 340
@@ -263,6 +267,7 @@
   var parallelFragments = Array.from(
     target.querySelectorAll(".parallel-fragment")
   );
+  var parallelStates = new Map();
   var footnoteMarkers = Array.from(
     target.querySelectorAll(".footnote-marker")
   );
@@ -311,6 +316,8 @@
   var part3GroupState = [];
   var part3EndingState = [];
   var part3SecondState = null;
+  var part3ColorAnimations = [];
+  var part4Intro = target.querySelector(".part-4-intro");
   var part4Prompt = target.querySelector(".part-4-prompt");
   var part4Trigger = target.querySelector(".part-4-trigger");
   var part4Previews = Array.from(
@@ -390,11 +397,25 @@
   parallelFragments.forEach(function (element) {
     var width = element.getBoundingClientRect().width;
     var finalText = element.textContent;
+    var textWalker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    var textNodes = [];
+    var textNode;
+
+    while ((textNode = textWalker.nextNode())) {
+      textNodes.push({ node: textNode, text: textNode.data });
+      textNode.data = textNodes.length === 1 ? roomBaselineStrut : "";
+    }
 
     element.setAttribute("data-parallel-final", finalText);
     element.style.width = width + "px";
-    element.textContent = roomBaselineStrut;
+    parallelStates.set(element, textNodes);
   });
+
+  function restoreParallelFragment(element) {
+    parallelStates.get(element).forEach(function (item) {
+      item.node.data = item.text;
+    });
+  }
 
   footnoteMarkers.forEach(function (element) {
     var width = element.getBoundingClientRect().width;
@@ -728,6 +749,11 @@
   }
 
   nodes.forEach(function (node) {
+    // The compact preview hides the chapter label, so do not type its blank lines.
+    if (isPart4Preview && part4Intro && part4Intro.contains(node)) {
+      return;
+    }
+
     if (part4Previews.some(function (preview) {
       return preview.contains(node);
     })) {
@@ -1635,6 +1661,41 @@
     }, settings.part2SecondEntrancePause);
   }
 
+  function startPart3Colors(duration) {
+    var root = document.documentElement;
+    var palette = window.getComputedStyle(root);
+    var fadeDuration = Math.max(1, duration - settings.part3ColorDelay);
+
+    part3ColorAnimations = [
+      root.animate([
+        { backgroundColor: palette.getPropertyValue("--part-3-background-start").trim() },
+        { backgroundColor: palette.getPropertyValue("--part-3-background-end").trim() }
+      ], {
+        delay: settings.part3ColorDelay,
+        duration: fadeDuration,
+        easing: "cubic-bezier(.22, .7, .35, 1)",
+        fill: "forwards"
+      }),
+      document.body.animate([
+        { color: palette.getPropertyValue("--part-3-text-start").trim() },
+        { color: palette.getPropertyValue("--part-3-text-end").trim() }
+      ], {
+        delay: settings.part3ColorDelay,
+        duration: fadeDuration,
+        easing: "cubic-bezier(.16, .75, .32, 1)",
+        fill: "forwards"
+      })
+    ];
+  }
+
+  function finishPart3Colors() {
+    document.documentElement.classList.add("is-part3-color-complete");
+    part3ColorAnimations.forEach(function (animation) {
+      animation.cancel();
+    });
+    part3ColorAnimations = [];
+  }
+
   function animatePart3Groups(done) {
     var part3SceneFinished = false;
     var part3ConcurrentStarted = false;
@@ -1906,6 +1967,7 @@
       cursor.classList.remove("is-part3-parallel-scene");
       restorePart3FirstSection();
       restorePart3SecondSection();
+      finishPart3Colors();
 
       if (part3EndingState.length) {
         placeCursorAfter(
@@ -2247,12 +2309,28 @@
       }, 420);
     }
 
+    var introDuration = part3IntroState.reduce(function (duration, item) {
+      return duration +
+        visibleCharacterCount(item.text) * part3BaseCharacterDelay +
+        settings.part3IntroHold;
+    }, 950);
+    var endingDuration = part3EndingState.reduce(function (duration, item) {
+      return duration + 420 +
+        visibleCharacterCount(item.text) * part3BaseCharacterDelay +
+        settings.part3EndingLinePause;
+    }, settings.part3BeforeBrightPause + settings.part3AfterEndingPause);
+
+    // Use the existing scene schedule without changing any typing or movement delays.
+    startPart3Colors(
+      introDuration + 320 + getPart3ConcurrentDuration() + 180 + endingDuration
+    );
     typeIntro(0);
   }
 
   function animatePart4Continuation(done) {
     var part4SceneFinished = false;
     var part4Stage = "waiting-first";
+    var part4Autoplay = isPart4Preview;
     var firstParts = part4ContinuationState && segmenter
       ? Array.from(
           segmenter.segment(part4ContinuationState.text),
@@ -2461,6 +2539,13 @@
       }
 
       part4Stage = "waiting-lips";
+      if (part4Autoplay) {
+        placeCursorAfter(part4LipsTrigger);
+        activeSceneSkip = finishPart4Continuation;
+        laterInScene(beginFinalTyping, settings.part4CursorArrivalPause);
+        return;
+      }
+
       part4LipsPrompt.classList.add("is-ready");
       part4LipsPrompt.classList.remove("is-activated");
       part4LipsTrigger.disabled = false;
@@ -2562,6 +2647,13 @@
       !part4LipsTrigger
     ) {
       finishPart4Continuation();
+      return;
+    }
+
+    if (part4Autoplay) {
+      placeCursorAfter(part4Trigger);
+      activeSceneSkip = finishPart4Continuation;
+      laterInScene(beginPart4Typing, settings.part4CursorArrivalPause);
       return;
     }
 
@@ -2802,7 +2894,7 @@
 
       parallelFinished = true;
       elements.forEach(function (element) {
-        element.textContent = element.getAttribute("data-parallel-final") || "";
+        restoreParallelFragment(element);
         element.classList.add("is-visible");
         element.classList.remove("is-parallel-typing");
       });
@@ -2831,17 +2923,23 @@
     }
 
     elements.forEach(function (element) {
-      var finalText = element.getAttribute("data-parallel-final") || "";
-      var parts = segmenter
-        ? Array.from(segmenter.segment(finalText), function (item) {
-            return item.segment;
-          })
-        : Array.from(finalText);
-      var textNode = document.createTextNode(roomBaselineStrut);
+      var parts = [];
+
+      parallelStates.get(element).forEach(function (item, index) {
+        item.node.data = index === 0 ? roomBaselineStrut : "";
+        var graphemes = segmenter
+          ? Array.from(segmenter.segment(item.text), function (part) {
+              return part.segment;
+            })
+          : Array.from(item.text);
+
+        graphemes.forEach(function (character) {
+          parts.push({ node: item.node, character: character });
+        });
+      });
+
       var characterPosition = 0;
 
-      element.textContent = "";
-      element.appendChild(textNode);
       element.classList.add("is-visible", "is-parallel-typing");
 
       function typeParallelCharacter() {
@@ -2851,23 +2949,25 @@
 
         if (characterPosition >= parts.length) {
           laterInScene(function () {
-            element.textContent = finalText;
+            restoreParallelFragment(element);
             element.classList.remove("is-parallel-typing");
             completeElement();
           }, 130);
           return;
         }
 
-        var character = parts[characterPosition];
-        textNode.appendData(character);
+        var item = parts[characterPosition];
+        var character = item.character;
+        item.node.appendData(character);
         characterPosition += 1;
 
         if (/\s/u.test(character)) {
           while (
             characterPosition < parts.length &&
-            /\s/u.test(parts[characterPosition])
+            /\s/u.test(parts[characterPosition].character)
           ) {
-            textNode.appendData(parts[characterPosition]);
+            var whitespaceItem = parts[characterPosition];
+            whitespaceItem.node.appendData(whitespaceItem.character);
             characterPosition += 1;
           }
         }
@@ -3623,6 +3723,7 @@
 
     if (part3IntroState.length) {
       restorePart3FirstSection();
+      finishPart3Colors();
     }
 
     if (part3SecondState) {
@@ -3644,7 +3745,7 @@
     }
 
     parallelFragments.forEach(function (element) {
-      element.textContent = element.getAttribute("data-parallel-final") || "";
+      restoreParallelFragment(element);
       element.classList.add("is-visible");
       element.classList.remove("is-parallel-typing");
     });

@@ -64,6 +64,32 @@ pre {
   white-space: pre;
 }
 
+.poem-preview-trigger {
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.poem-preview-trigger:hover,
+.poem-preview-trigger:focus-visible,
+.poem-preview-trigger[aria-expanded="true"] {
+  color: #222222;
+  border-bottom-color: currentColor;
+}
+
+.poem-preview-trigger:focus-visible {
+  outline: 1px dotted currentColor;
+  outline-offset: 3px;
+}
+
 .map-number {
   color: #666666;
   font-size: 15px;
@@ -103,6 +129,53 @@ hr {
 .index-page hr {
   width: 514px;
   margin-top: 118px;
+}
+
+.poem-preview-card {
+  position: fixed;
+  z-index: 10;
+  box-sizing: border-box;
+  width: 180px;
+  max-width: calc(100vw - 24px);
+  height: 296px;
+  max-height: calc(100vh - 24px);
+  border: 1px solid #d6d6d3;
+  color: #858585;
+  background: #f6f6f4;
+  box-shadow: 0 2px 7px rgba(0, 0, 0, .18);
+  outline: none;
+}
+
+.poem-preview-card[hidden] {
+  display: none;
+}
+
+.poem-preview-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #f6f6f4;
+}
+
+.poem-preview-close {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  z-index: 1;
+  padding: 2px 4px;
+  border: 0;
+  color: #aaaaaa;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.poem-preview-close:hover,
+.poem-preview-close:focus-visible {
+  color: #555555;
 }
 
 .site-nav {
@@ -195,6 +268,32 @@ hr {
 .part-2 .part-2-second-section {
   font-size: 16px;
   transform: translateY(-92px);
+}
+
+html.part-3-root {
+  --part-3-background-start: #eeeeee;
+  --part-3-background-end: #207f51;
+  --part-3-text-start: #858585;
+  --part-3-text-end: #ffffff;
+  background-color: var(--part-3-background-start);
+}
+
+body.part-3 {
+  color: var(--part-3-text-start);
+  background: transparent;
+}
+
+.part-3 a:hover,
+.part-3 a:focus {
+  color: inherit;
+}
+
+html.part-3-root.is-part3-color-complete {
+  background-color: var(--part-3-background-end);
+}
+
+html.part-3-root.is-part3-color-complete body.part-3 {
+  color: var(--part-3-text-end);
 }
 
 .part-3 .part-3-layout {
@@ -324,8 +423,66 @@ hr {
   top: 342px;
 }
 
+html.part-4-preview-root {
+  background: #f6f6f4;
+}
+
+.part-4-preview-root body.part-4 {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 18px 13px;
+  overflow-x: hidden;
+  background: transparent;
+  font-size: 13px;
+}
+
+.part-4-preview-root .site-nav,
+.part-4-preview-root .page-turn,
+.part-4-preview-root .part-4-intro {
+  display: none;
+}
+
+.part-4-preview-root .part-4-layout {
+  height: 252px;
+  line-height: 1.4;
+}
+
+.part-4-preview-root .part-4-prompt {
+  top: 0;
+}
+
+.part-4-preview-root .part-4-continuation {
+  top: 92px;
+}
+
+.part-4-preview-root .part-4-final {
+  top: 212px;
+}
+
+.part-4-preview-root .part-4-prompt .part-4-trigger {
+  font-size: 14px;
+}
+
+.part-4-preview-root .part-4 .part-4-preview {
+  top: calc(100% + 8px);
+  left: 0;
+  max-width: 80px;
+  padding: 4px 6px;
+  font-size: 11px;
+}
+
 .part-5 .part-5-title {
   font-size: 15.5px;
+}
+
+.part-5 .part-5-oblique {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  font-style: oblique 4deg;
+  line-height: inherit;
 }
 
 .part-5 .work.is-part5-coloring .part-5-copy {
@@ -855,6 +1012,63 @@ body.part-5.is-part5-vanishing {
   white-space: pre;
 }
 
+.part-1 .footnote-term,
+.part-1 .footnote-chinese {
+  font-family: "Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", serif;
+  font-weight: 600;
+}
+
+.part-1 .footnote-term {
+  /* Align the line metrics first, then lift the ink without changing its space. */
+  vertical-align: .5px;
+  position: relative;
+  top: -.06em;
+}
+
+.part-1 .footnote-marker {
+  top: -.55em;
+  margin-left: .12em;
+  font-family: "Times New Roman", serif;
+  font-size: 9px;
+  line-height: 0;
+}
+
+.part-1 .second-movement {
+  position: relative;
+  min-height: max(560px, calc(100vh - 116px));
+}
+
+.part-1 .footnote-block {
+  position: absolute;
+  bottom: 0;
+  left: calc(28px - 72px - max(0px, (100vw - 920px) / 2));
+  width: 500px;
+  max-width: calc(100vw - 56px);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 15px;
+  white-space: normal;
+}
+
+.part-1 .footnote-rule {
+  display: block;
+  height: 0;
+  margin-bottom: 42px;
+  border-top: 1px solid #c8c8c8;
+}
+
+.part-1 .footnote-line {
+  display: block;
+  min-height: 15px;
+}
+
+.part-1 .footnote-number {
+  display: inline-block;
+  min-width: 1em;
+  vertical-align: top;
+  font-family: "Times New Roman", serif;
+}
+
 .work.has-footnote-animation .footnote-marker,
 .work.has-footnote-animation .footnote-line,
 .work.has-footnote-animation .footnote-rule {
@@ -1031,6 +1245,14 @@ body.part-5.is-part5-vanishing {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html.part-3-root {
+    background-color: var(--part-3-background-end);
+  }
+
+  body.part-3 {
+    color: var(--part-3-text-end);
+  }
+
   .typewriter-cursor {
     display: none;
   }
