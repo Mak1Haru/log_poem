@@ -49,10 +49,7 @@
   var asciiSymbols =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" +
     "0123456789!@#$%^&*()-_=+[]{};:,.<>/?\\|~";
-  var hanSymbols =
-    "天地人山水风云海光影白灰蓝绿静脉琥珀她我你之间心空星" +
-    "春夜梦雨花时间名字生活城市画布波浪河流透明温柔沉默" +
-    "天空石头少女眼睛距离语言注视情书月亮";
+  var hanSymbols = window.PoemGlyphs.han;
   var cursor = document.createElement("span");
   var currentSkip = null;
   var finalStarted = false;
@@ -114,7 +111,7 @@
     ) && Math.random() < 0.5;
     var symbols = useHan ? hanSymbols : asciiSymbols;
 
-    return symbols.charAt(Math.floor(Math.random() * symbols.length));
+    return symbols[Math.floor(Math.random() * symbols.length)];
   }
 
   function showCorruptionSymbol(span) {

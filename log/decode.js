@@ -71,7 +71,7 @@
     cycleDelay: 48
   };
   var asciiSymbols = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+[]{};:,.<>/?\\|~";
-  var hanSymbols = "天地人山水风云海光影白灰蓝绿静脉琥珀她我你之间心空星春夜梦雨花时间名字生活城市画布波浪河流透明温柔沉默天空另一种";
+  var hanSymbols = window.PoemGlyphs.han;
   var timeouts = [];
   var intervals = [];
   var completed = 0;
@@ -97,7 +97,7 @@
       ? hanSymbols
       : asciiSymbols;
 
-    return symbols.charAt(Math.floor(Math.random() * symbols.length));
+    return symbols[Math.floor(Math.random() * symbols.length)];
   }
 
   function removeListeners() {

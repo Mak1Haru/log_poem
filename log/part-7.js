@@ -38,10 +38,7 @@
   var asciiSymbols =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" +
     "0123456789!@#$%^&*()-_=+[]{};:,.<>/?\\|~";
-  var hanSymbols =
-    "天地人山水风云海光影白灰蓝绿静脉琥珀她我你之间心空星" +
-    "春夜梦雨花时间名字生活城市画布波浪河流透明温柔沉默" +
-    "天空另一种项链夏天孤独飞翔字符串完整一半";
+  var hanSymbols = window.PoemGlyphs.han;
   var settings = {
     initialDelay: 280,
     stagger: 12,
@@ -365,7 +362,7 @@
       ? hanSymbols
       : asciiSymbols;
 
-    return symbols.charAt(Math.floor(Math.random() * symbols.length));
+    return symbols[Math.floor(Math.random() * symbols.length)];
   }
 
   function removeRevealListeners() {

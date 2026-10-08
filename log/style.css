@@ -1062,6 +1062,74 @@ body.part-5.is-part5-vanishing {
 .part-1 .second-movement {
   position: relative;
   min-height: max(560px, calc(100vh - 116px));
+  white-space: normal;
+}
+
+/* PDF composition: offsets are relative to (72pt, 955pt), divided by
+   its 7pt body size. em units retain those proportions at our 14px size.
+   Literal spaces remain in the source only to preserve the typing score. */
+.part-1 .movement-row {
+  display: block;
+  position: absolute;
+  top: var(--pdf-y);
+  left: 0;
+  width: 100%;
+  min-height: 1.6em;
+  white-space: normal;
+}
+
+.part-1 .movement-indent,
+.part-1 .second-movement > .typewriter-cursor {
+  display: none;
+}
+
+.part-1 .movement-lead {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  min-height: 1.6em;
+  white-space: nowrap;
+}
+
+.part-1 .movement-pair {
+  display: inline-grid;
+  position: absolute;
+  top: 0;
+  left: var(--pdf-first-x);
+  grid-template-columns: max-content max-content;
+  align-items: baseline;
+  vertical-align: top;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.part-1 .parallel-group {
+  display: inline-grid;
+  grid-template-columns: calc(var(--pdf-second-x) - var(--pdf-first-x)) max-content;
+  align-items: baseline;
+  justify-items: start;
+  white-space: normal;
+}
+
+.part-1 .parallel-fragment {
+  min-height: 1.6em;
+  white-space: nowrap;
+}
+
+.part-1 .movement-row-name .movement-pair > .footnote-term {
+  min-width: 4em;
+  min-height: 1.6em;
+}
+
+.part-1 .movement-row .typewriter-cursor,
+.part-1 .footnote-inline-cursor {
+  position: absolute;
+}
+
+.part-1 .movement-pair > .typewriter-cursor {
+  left: 100%;
+  top: .2em;
 }
 
 .part-1 .footnote-block {
@@ -1432,6 +1500,8 @@ body.part-5.is-part5-vanishing {
   :where(html.poem-layout-flow) .part-1 .movement-row {
     display: block;
     position: relative;
+    top: auto;
+    width: auto;
     min-height: 24px;
     margin-bottom: 28px;
     text-align: center;
@@ -1441,24 +1511,30 @@ body.part-5.is-part5-vanishing {
     min-height: 68px;
     text-align: left;
   }
-  /* Keep the desktop's literal indentation in the text, but let mobile
-     columns own the spacing. An animating caret must never add a line. */
+  /* Keep source whitespace as timing cues, but let mobile columns own
+     the spacing. An animating caret must never add a line. */
   :where(html.poem-layout-flow) .part-1 .movement-indent,
   :where(html.poem-layout-flow) .part-1 .second-movement > .typewriter-cursor {
     display: none;
   }
   :where(html.poem-layout-flow) .part-1 .movement-lead {
     display: block;
+    position: static;
     min-height: 1.55em;
   }
   :where(html.poem-layout-flow) .part-1 .movement-pair {
     display: inline-grid;
     position: relative;
+    top: auto;
+    left: auto;
     grid-template-columns: max-content max-content;
     align-items: baseline;
     vertical-align: top;
     text-align: left;
     white-space: nowrap;
+  }
+  :where(html.poem-layout-flow) .part-1 .movement-row-wide .movement-pair {
+    display: block;
   }
   :where(html.poem-layout-flow) .part-1 .movement-row-name .movement-pair > .footnote-term {
     min-width: 4em;
@@ -1470,10 +1546,6 @@ body.part-5.is-part5-vanishing {
   :where(html.poem-layout-flow) .part-1 .movement-pair > .typewriter-cursor {
     left: 100%;
     top: .2em;
-  }
-  :where(html.poem-layout-flow) .part-1 .movement-row-wide > .typewriter-cursor {
-    right: 0;
-    top: calc(1.55em + 18px + .2em);
   }
   :where(html.poem-layout-flow) .part-1 .parallel-group {
     display: inline-grid;
