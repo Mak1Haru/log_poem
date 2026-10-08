@@ -9,14 +9,20 @@
   }
 
   var frame = card.querySelector(".poem-preview-frame");
-  var closeButton = card.querySelector(".poem-preview-close");
   var anchor = triggers.find(function (trigger) {
     return trigger.classList.contains("map-number");
   }) || triggers[0];
   var activeTrigger = anchor;
   var closeTimer = 0;
+  var fadeTimer = 0;
+  var fadeDuration = 1000;
+  var fadingOut = false;
+  var fadeRestoreFocus = false;
+  var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  var previewSession = 0;
   var pinned = false;
   var restoringFocus = false;
+  card.style.setProperty("--poem-preview-fade-duration", fadeDuration + "ms");
 
   function isInside(target) {
     return target instanceof Node && (
@@ -28,6 +34,9 @@
 
   function cancelClose() {
     window.clearTimeout(closeTimer);
+    closeTimer = 0;
+    window.clearTimeout(fadeTimer);
+    fadeTimer = 0;
   }
 
   function positionCard() {
@@ -35,11 +44,12 @@
       return;
     }
 
-    var rect = anchor.getBoundingClientRect();
+    var rect = window.PoemView.rect(anchor);
     var width = card.offsetWidth;
     var height = card.offsetHeight;
-    var viewportWidth = document.documentElement.clientWidth;
-    var viewportHeight = window.innerHeight;
+    var viewport = window.PoemView.viewport();
+    var viewportWidth = viewport.width;
+    var viewportHeight = viewport.height;
     var left = rect.right + 10;
 
     if (left + width > viewportWidth - 12) {
@@ -51,12 +61,19 @@
   }
 
   function openPreview(trigger) {
-    cancelClose();
     activeTrigger = trigger;
 
+    if (fadingOut) {
+      closePreview(false);
+    }
+
     if (card.hidden) {
+      cancelClose();
+      previewSession += 1;
+      var source = new URL(frame.getAttribute("data-src"), window.location.href);
+      source.searchParams.set("previewSession", String(previewSession));
       card.hidden = false;
-      frame.src = frame.getAttribute("data-src");
+      frame.src = source.href;
       triggers.forEach(function (item) {
         item.setAttribute("aria-expanded", "true");
       });
@@ -68,6 +85,9 @@
   function closePreview(restoreFocus) {
     cancelClose();
     card.hidden = true;
+    fadingOut = false;
+    fadeRestoreFocus = false;
+    card.classList.remove("is-fading-out");
     pinned = false;
     frame.removeAttribute("src");
     triggers.forEach(function (item) {
@@ -81,21 +101,43 @@
     }
   }
 
-  function scheduleClose() {
-    cancelClose();
-    closeTimer = window.setTimeout(function () {
-      if (pinned || isInside(document.activeElement)) {
-        return;
-      }
+  function finishFade() {
+    if (fadingOut) {
+      closePreview(fadeRestoreFocus);
+    }
+  }
 
-      if (card.matches(":hover") || triggers.some(function (item) {
-        return item.matches(":hover");
-      })) {
-        return;
-      }
+  function fadeOutPreview() {
+    closeTimer = 0;
+    if (card.hidden || fadingOut) {
+      return;
+    }
 
-      closePreview(false);
-    }, 350);
+    fadeRestoreFocus = card.contains(document.activeElement);
+    if (reduceMotion.matches) {
+      closePreview(fadeRestoreFocus);
+      return;
+    }
+
+    fadingOut = true;
+    card.classList.add("is-fading-out");
+    // Keep the iframe visible until the transition ends; the timer is a safety net.
+    fadeTimer = window.setTimeout(finishFade, fadeDuration + 150);
+  }
+
+  card.addEventListener("transitionend", function (event) {
+    if (event.target === card && event.propertyName === "opacity") {
+      finishFade();
+    }
+  });
+
+  function closeAfterPlayback() {
+    if (closeTimer || fadingOut) {
+      return;
+    }
+
+    // Completion already includes the final typing pause; leave a little reading time.
+    closeTimer = window.setTimeout(fadeOutPreview, 2000);
   }
 
   triggers.forEach(function (trigger) {
@@ -104,7 +146,6 @@
         openPreview(trigger);
       }
     });
-    trigger.addEventListener("pointerleave", scheduleClose);
     trigger.addEventListener("focus", function () {
       if (!restoringFocus) {
         openPreview(trigger);
@@ -120,13 +161,6 @@
       pinned = true;
       card.focus({ preventScroll: true });
     });
-  });
-
-  card.addEventListener("pointerenter", cancelClose);
-  card.addEventListener("pointerleave", scheduleClose);
-  card.addEventListener("focusin", cancelClose);
-  closeButton.addEventListener("click", function () {
-    closePreview(true);
   });
 
   document.addEventListener("pointerdown", function (event) {
@@ -146,12 +180,27 @@
     }
   });
   window.addEventListener("message", function (event) {
+    // File URLs may serialize their origin as either "null" or "file://".
+    // Still require the exact iframe source and the current playback session.
+    var localFileOrigin = window.location.protocol === "file:" &&
+      (event.origin === "null" || event.origin === "file://");
+
     if (
-      !card.hidden &&
-      event.source === frame.contentWindow &&
-      event.data && event.data.type === "part-4-preview-close"
+      card.hidden ||
+      event.source !== frame.contentWindow ||
+      (event.origin !== window.location.origin && !localFileOrigin) ||
+      !event.data
     ) {
+      return;
+    }
+
+    if (event.data.type === "part-4-preview-close") {
       closePreview(true);
+    } else if (
+      event.data.type === "part-4-preview-complete" &&
+      event.data.session === String(previewSession)
+    ) {
+      closeAfterPlayback();
     }
   });
   window.addEventListener("resize", positionCard);

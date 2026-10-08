@@ -48,6 +48,15 @@ pre {
   white-space: pre-wrap;
 }
 
+/* Inline emphasis keeps the same size, weight and baseline as the poem. */
+.poem-italic {
+  font-style: italic;
+}
+
+.poem-oblique {
+  font-style: oblique 4deg;
+}
+
 .map {
   position: relative;
   width: 520px;
@@ -144,6 +153,13 @@ hr {
   background: #f6f6f4;
   box-shadow: 0 2px 7px rgba(0, 0, 0, .18);
   outline: none;
+  opacity: 1;
+  transition: opacity var(--poem-preview-fade-duration, 1000ms) ease;
+}
+
+.poem-preview-card.is-fading-out {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .poem-preview-card[hidden] {
@@ -156,26 +172,6 @@ hr {
   height: 100%;
   border: 0;
   background: #f6f6f4;
-}
-
-.poem-preview-close {
-  position: absolute;
-  top: 2px;
-  right: 4px;
-  z-index: 1;
-  padding: 2px 4px;
-  border: 0;
-  color: #aaaaaa;
-  background: transparent;
-  font: inherit;
-  font-size: 14px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.poem-preview-close:hover,
-.poem-preview-close:focus-visible {
-  color: #555555;
 }
 
 .site-nav {
@@ -461,8 +457,10 @@ html.part-4-preview-root {
   top: 212px;
 }
 
-.part-4-preview-root .part-4-prompt .part-4-trigger {
-  font-size: 14px;
+.part-4-preview-root .part-4 .part-4-trigger,
+.part-4-preview-root .part-4 .part-4-lips-trigger {
+  font-size: inherit;
+  text-decoration: none;
 }
 
 .part-4-preview-root .part-4 .part-4-preview {
@@ -792,7 +790,8 @@ body.part-5.is-part5-vanishing {
 }
 
 .part-7 .part-7-emphasis {
-  color: #bda4ac;
+  color: inherit;
+  font-style: oblique 4deg;
 }
 
 .part-7 .part-7-gap {
@@ -818,6 +817,12 @@ body.part-5.is-part5-vanishing {
 
 .part-7 .work.is-part7-decoding .part-7-character {
   pointer-events: none;
+}
+
+.part-7 .part-7-glyph.is-breathing {
+  /* Shorten the fade-out by 20%, preserving the original return time. */
+  animation: part7-glyph-breathe calc(var(--part7-breath-duration, 12s) * .9) ease-in-out both;
+  animation-delay: var(--part7-breath-delay, 0ms);
 }
 
 .part-question .pq-stage {
@@ -1012,17 +1017,38 @@ body.part-5.is-part5-vanishing {
   white-space: pre;
 }
 
+@font-face {
+  font-family: "Poem Fangsong";
+  src: local("STFangsong"), local("FangSong"), local("仿宋"), local("仿宋_GB2312");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
 .part-1 .footnote-term,
 .part-1 .footnote-chinese {
-  font-family: "Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", serif;
-  font-weight: 600;
+  font-family: "Poem Fangsong", "STFangsong", "FangSong", "仿宋", "Songti SC", "SimSun", serif;
+  font-weight: 400;
+  font-synthesis: none;
 }
 
 .part-1 .footnote-term {
-  /* Align the line metrics first, then lift the ink without changing its space. */
-  vertical-align: .5px;
-  position: relative;
-  top: -.06em;
+  /* Share the surrounding text's baseline, including inside animated fragments.
+     Optical offsets for a previous font must not carry over to Fangsong. */
+  vertical-align: baseline;
+}
+
+.part-1 .footnote-chinese.poem-oblique {
+  /* The local Fangsong face has no italic cut; allow slant, not faux bold. */
+  font-synthesis: style;
+}
+
+.part-1 .footnote-english {
+  /* Match the body’s “I am” face, retaining the smaller footnote size. */
+  font-family: inherit;
+  font-weight: 300;
+  /* Align visible ink, not just grid boxes, using the loaded font metrics. */
+  margin-inline-start: var(--footnote-ink-inset, 0em);
 }
 
 .part-1 .footnote-marker {
@@ -1058,15 +1084,28 @@ body.part-5.is-part5-vanishing {
 }
 
 .part-1 .footnote-line {
-  display: block;
+  display: grid;
+  grid-template-columns: 1em minmax(0, 1fr);
+  column-gap: .25em;
+  align-items: baseline;
   min-height: 15px;
 }
 
 .part-1 .footnote-number {
-  display: inline-block;
-  min-width: 1em;
-  vertical-align: top;
+  min-width: 0;
   font-family: "Times New Roman", serif;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.part-1 .footnote-copy {
+  min-width: 0;
+}
+
+.part-1 .footnote-number::before,
+.part-1 .footnote-copy::before {
+  /* Keep real text baselines even while these cells are empty during typing. */
+  content: "\2060";
 }
 
 .work.has-footnote-animation .footnote-marker,
@@ -1211,6 +1250,17 @@ body.part-5.is-part5-vanishing {
   white-space: pre;
 }
 
+@keyframes part7-glyph-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  44.444444% {
+    opacity: 0;
+  }
+}
+
 @keyframes typewriter-cursor-blink {
   0%,
   48% {
@@ -1245,6 +1295,15 @@ body.part-5.is-part5-vanishing {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .poem-preview-card {
+    transition: none;
+  }
+
+  .part-7 .part-7-glyph.is-breathing {
+    animation: none;
+    opacity: 1;
+  }
+
   html.part-3-root {
     background-color: var(--part-3-background-end);
   }
@@ -1277,20 +1336,390 @@ body.part-5.is-part5-vanishing {
 }
 
 @media (max-width: 919px) {
-  body {
-    width: 920px;
+  html.poem-layout-flow {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  html.poem-layout-flow:not(.part-4-preview-root) body {
+    width: 100%;
+    min-height: 100svh;
     margin: 0;
+    padding: max(88px, calc(env(safe-area-inset-top) + 70px))
+      max(22px, env(safe-area-inset-right))
+      max(64px, calc(env(safe-area-inset-bottom) + 40px))
+      max(22px, env(safe-area-inset-left));
+  }
+  :where(html.poem-layout-flow) .work {
+    min-height: 0;
+  }
+  :where(html.poem-layout-flow) .site-nav,
+  :where(html.poem-layout-flow) .sound-toggle {
+    position: absolute;
+    top: max(12px, env(safe-area-inset-top));
+  }
+  :where(html.poem-layout-flow) .site-nav {
+    left: auto;
+    right: max(22px, env(safe-area-inset-right));
+    font-size: 11px;
+  }
+  :where(html.poem-layout-flow) .site-nav a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  :where(html.poem-layout-flow) .sound-toggle {
+    left: max(22px, env(safe-area-inset-left));
+    right: auto;
+    min-height: 44px;
+    max-width: 40%;
+    font-size: 10px;
+  }
+  :where(html.poem-layout-flow) a,
+  :where(html.poem-layout-flow) button {
+    touch-action: manipulation;
+  }
+  :where(html.poem-layout-flow) .index-page h1 {
+    margin-bottom: 58px;
+    font-size: clamp(17px, 4.6vw, 22px);
+  }
+  :where(html.poem-layout-flow) .map {
+    width: min(560px, 100%);
+    height: 490px;
+    margin-inline: auto;
+  }
+  :where(html.poem-layout-flow) .map-number::before,
+  :where(html.poem-layout-flow) .map-question::before {
+    position: absolute;
+    inset: -14px -12px;
+    content: "";
+  }
+  :where(html.poem-layout-flow) .map-question {
+    position: relative;
+  }
+  :where(html.poem-layout-flow) .map .map-coda {
+    top: 461px !important;
+    left: 0 !important;
+    width: 100%;
+    text-align: center;
+  }
+  :where(html.poem-layout-flow) .index-page hr {
+    width: 100%;
+    max-width: 514px;
+    margin: 46px auto 0;
+  }
+  :where(html.poem-layout-flow) .room-window {
+    box-sizing: border-box;
+    width: min(300px, calc(100vw - 40px));
+  }
+  :where(html.poem-layout-flow) .room-window-bar {
+    height: 40px;
+  }
+  :where(html.poem-layout-flow) .room-window-close {
+    width: 44px;
+    height: 40px;
+  }
+  :where(html.poem-layout-flow) .part-1 .first-movement {
+    line-height: 1.75;
+  }
+  :where(html.poem-layout-flow) .part-1 .wave-scramble-line {
+    max-width: min(12em, calc(100vw - 180px));
+    overflow: hidden;
+  }
+  :where(html.poem-layout-flow) .part-1 .second-movement {
+    min-height: 0;
+    white-space: normal;
+  }
+  :where(html.poem-layout-flow) .part-1 .movement-row {
+    display: block;
+    position: relative;
+    min-height: 24px;
+    margin-bottom: 28px;
+    text-align: center;
+    white-space: normal;
+  }
+  :where(html.poem-layout-flow) .part-1 .movement-row-wide {
+    min-height: 68px;
+    text-align: left;
+  }
+  /* Keep the desktop's literal indentation in the text, but let mobile
+     columns own the spacing. An animating caret must never add a line. */
+  :where(html.poem-layout-flow) .part-1 .movement-indent,
+  :where(html.poem-layout-flow) .part-1 .second-movement > .typewriter-cursor {
+    display: none;
+  }
+  :where(html.poem-layout-flow) .part-1 .movement-lead {
+    display: block;
+    min-height: 1.55em;
+  }
+  :where(html.poem-layout-flow) .part-1 .movement-pair {
+    display: inline-grid;
+    position: relative;
+    grid-template-columns: max-content max-content;
+    align-items: baseline;
+    vertical-align: top;
+    text-align: left;
+    white-space: nowrap;
+  }
+  :where(html.poem-layout-flow) .part-1 .movement-row-name .movement-pair > .footnote-term {
+    min-width: 4em;
+    min-height: 1.55em;
+  }
+  :where(html.poem-layout-flow) .part-1 .movement-row .typewriter-cursor {
+    position: absolute;
+  }
+  :where(html.poem-layout-flow) .part-1 .movement-pair > .typewriter-cursor {
+    left: 100%;
+    top: .2em;
+  }
+  :where(html.poem-layout-flow) .part-1 .movement-row-wide > .typewriter-cursor {
+    right: 0;
+    top: calc(1.55em + 18px + .2em);
+  }
+  :where(html.poem-layout-flow) .part-1 .parallel-group {
+    display: inline-grid;
+    grid-template-columns: max-content max-content;
+    align-items: baseline;
+    gap: 10px;
+    white-space: normal;
+  }
+  :where(html.poem-layout-flow) .part-1 .parallel-fragment {
+    min-height: 1.6em;
+    white-space: nowrap;
+  }
+  :where(html.poem-layout-flow) .part-1 .movement-row-wide .parallel-group {
+    display: grid;
+    justify-content: space-between;
+    margin-top: 18px;
+  }
+  :where(html.poem-layout-flow) .part-1 .movement-row-name {
+    margin-top: 38px;
+    margin-left: 18px;
+    text-align: left;
+  }
+  :where(html.poem-layout-flow) .part-1 .footnote-block {
+    position: relative;
+    display: block;
+    bottom: auto;
+    left: 0;
+    width: 100%;
+    max-width: none;
+    margin-top: 70px;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+  :where(html.poem-layout-flow) .part-1 .footnote-rule {
+    margin-bottom: 26px;
+  }
+  :where(html.poem-layout-flow) .part-1 .footnote-line {
+    min-height: 18px;
+  }
+  :where(html.poem-layout-flow) .part-1 .footnote-inline-cursor {
+    position: absolute;
+  }
+  /* Keep the block readable: soft-wrap long lines, then zoom the block only
+     slightly. Desktop's original coordinates and zoom remain untouched. */
+  :where(html.poem-layout-flow) .part-2 .part-2-layout {
+    height: var(--mobile-part2-height, 760px);
+  }
+  :where(html.poem-layout-flow) .part-2 .part-2-first-section {
+    width: var(--mobile-block-width, 100%);
+    transform-origin: 0 var(--mobile-zoom-origin, 92px);
+    transform: scale(calc(1 + (var(--part-2-scale, 1) - 1) * .1));
+  }
+  :where(html.poem-layout-flow) .part-2 .part-2-first-section > .part-2-line {
+    width: var(--mobile-block-width, 100%);
+    height: var(--mobile-line-height, auto);
+    line-height: 1.55;
+    white-space: pre-wrap;
+  }
+  :where(html.poem-layout-flow) .part-2 .part-2-first-section > .part-2-lips-line {
+    width: max-content;
+    white-space: pre;
+  }
+  :where(html.poem-layout-flow) .part-2 .part-2-heading-line {
+    width: 100%;
+    height: var(--mobile-line-height, auto);
+    line-height: 1.55;
+    white-space: pre-wrap;
+  }
+  :where(html.poem-layout-flow) .part-2 .part-2-second-section {
+    transform: translateY(var(--mobile-second-shift, -92px));
+    font-size: 14px;
+  }
+  :where(html.poem-layout-flow) .part-2 .part-2-second-section .part-2-line {
+    font-size: calc(var(--part2-line-size, 16px) * .875) !important;
+  }
+  :where(html.poem-layout-flow) .part-2 .part-2-first-section .typewriter-cursor:not(.is-part2-line-start):not(.is-part2-pull-insert) {
+    top: auto;
+    transform: translateY(.25em);
+  }
+  :where(html.poem-layout-flow) .part-3 .part-3-layout {
+    box-sizing: border-box;
+    height: auto;
+    padding-top: 740px;
+  }
+  :where(html.poem-layout-flow) .part-3 .part-3-group {
+    left: clamp(0px, var(--part-3-x, var(--sx)), calc(100% - var(--mobile-group-width, 230px) - 8px));
+  }
+  :where(html.poem-layout-flow) .part-3 .part-3-second-section {
+    position: relative;
+    top: auto;
+    width: 100%;
+    min-height: 160px;
+    font-size: 12px;
+    line-height: 1.65;
+  }
+  :where(html.poem-layout-flow) .part-5 .work,
+  :where(html.poem-layout-flow) .part-7 .work,
+  :where(html.poem-layout-flow) .part-question .work {
+    line-height: 1.85;
+    overflow-wrap: anywhere;
+  }
+  :where(html.poem-layout-flow) .part-question .pq-stage {
+    min-height: calc(100svh - 152px);
+  }
+  html.poem-layout-flow:not(.part-4-preview-root) .part-4 .part-4-layout {
+    height: 450px;
+  }
+  :where(html.poem-layout-flow) .part-4-trigger::after,
+  :where(html.poem-layout-flow) .part-4-lips-trigger::after,
+  :where(html.poem-layout-flow) .part-6-quit-command::after,
+  :where(html.poem-layout-flow) .pq-closing.is-ready::after {
+    position: absolute;
+    inset: -12px -8px;
+    content: "";
+  }
+  :where(html.poem-layout-flow) .part-6-quit-command,
+  :where(html.poem-layout-flow) .pq-closing.is-ready {
+    position: relative;
+  }
+  :where(html.poem-layout-flow) .part-6 .part-6-terminal {
+    height: clamp(520px, calc(100svh - 152px), 700px);
+    --vi-copy-top: clamp(170px, 30svh, 210px);
+  }
+  :where(html.poem-layout-flow) .part-6 .part-6-open-command {
+    min-height: 44px;
+  }
+  :where(html.poem-layout-flow) .part-6 .part-6-vi-copy {
+    top: var(--vi-copy-top);
+  }
+  :where(html.poem-layout-flow) .part-6 .part-6-vi-empty-bottom {
+    top: calc(var(--vi-copy-top) + 64px);
+    bottom: 108px;
+    overflow: hidden;
+  }
+  :where(html.poem-layout-flow) .part-6 .part-6-vi-status {
+    display: flex;
+    align-items: baseline;
+    gap: .6ch;
+    top: auto;
+    bottom: 76px;
+  }
+  :where(html.poem-layout-flow) .part-6-status-rule {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+  }
+  :where(html.poem-layout-flow) .part-6-status-rule:last-child {
+    text-align: right;
+  }
+  :where(html.poem-layout-flow) .part-6-status-label {
+    flex: 0 0 auto;
+    font-size: 12px;
+  }
+  :where(html.poem-layout-flow) .part-6 .part-6-vi-command {
+    top: auto;
+    bottom: 32px;
+  }
+}
+
+@media (min-width: 600px) and (max-width: 919px) {
+  html.poem-layout-flow:not(.part-4-preview-root) body {
+    padding-inline: max(40px, env(safe-area-inset-left));
+  }
+}
+
+@media (max-width: 359px) {
+  html.poem-layout-flow:not(.part-4-preview-root) body {
+    padding-inline: max(18px, env(safe-area-inset-left));
+  }
+  :where(html.poem-layout-flow) .part-1 .parallel-group {
+    gap: 6px;
+  }
+  :where(html.poem-layout-flow) .part-6 .part-6-open-command {
+    font-size: 13px;
+  }
+}
+
+@media (hover: none) {
+  .part-4 .part-4-preview {
+    display: none;
   }
 
-  .site-nav {
-    position: absolute;
-    left: 72px;
-    right: auto;
+  .part-7 .part-7-character {
+    -webkit-tap-highlight-color: transparent;
   }
+}
 
-  .sound-toggle {
-    position: absolute;
-    left: 72px;
-    right: auto;
+/* The two mobile presentations share text and animation, not line wrapping. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+.layout-mode-control { display: none; }
+
+@media (max-width: 919px) {
+  html.poem-layout-original body {
+    width: 920px;
+    min-height: var(--poem-viewport-height, 100vh);
+    margin: 0;
+    zoom: var(--poem-page-scale, 1);
+  }
+  html.poem-layout-original .part-1 .second-movement {
+    min-height: max(560px, calc(var(--poem-viewport-height) - 116px));
+  }
+  html.poem-layout-original .part-1 .footnote-block {
+    max-width: calc(var(--poem-viewport-width) - 56px);
+  }
+  html.poem-layout-original .poem-preview-card {
+    max-width: calc(var(--poem-viewport-width) - 24px);
+    max-height: calc(var(--poem-viewport-height) - 24px);
+  }
+  .layout-mode-control {
+    display: block;
+    position: fixed;
+    right: max(12px, env(safe-area-inset-right));
+    bottom: max(10px, env(safe-area-inset-bottom));
+    z-index: 30;
+    padding: 0;
+    border: 0;
+    color: #858585;
+    background: transparent;
+    font: 11px/1.4 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+    white-space: nowrap;
+    zoom: calc(1 / var(--poem-page-scale, 1));
+  }
+  .layout-mode-control button {
+    appearance: none;
+    min-height: 40px;
+    padding: 0 4px;
+    border: 0;
+    border-radius: 0;
+    color: inherit;
+    background: transparent;
+    font: inherit;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .part-3 .layout-mode-control {
+    color: inherit;
+  }
+  .layout-mode-control button:hover {
+    text-decoration: underline;
+    text-underline-offset: .25em;
+  }
+  .layout-mode-control button:focus-visible {
+    outline: 1px solid currentColor;
+    outline-offset: 1px;
   }
 }

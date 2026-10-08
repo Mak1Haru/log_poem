@@ -1,6 +1,8 @@
 (function () {
   "use strict";
 
+  var stopAdvanceTap = function () {};
+
   var target = document.querySelector(".work");
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   var roomSection = target
@@ -102,11 +104,11 @@
       oscillator.frequency.setValueAtTime(440, now);
       gain.gain.setValueAtTime(0.0001, now);
       gain.gain.exponentialRampToValueAtTime(0.055, now + 0.045);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.65);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 2.35);
       oscillator.connect(gain);
       gain.connect(context.destination);
       oscillator.start(now);
-      oscillator.stop(now + 1.7);
+      oscillator.stop(now + 2.4);
 
       if (soundButton) {
         soundButton.textContent = "A · 440 Hz";
@@ -180,18 +182,35 @@
     return;
   }
 
+  var isPart4Preview = document.documentElement.classList.contains(
+    "part-4-preview-root"
+  );
+  var part4PreviewCompleted = false;
+
+  function notifyPart4PreviewComplete() {
+    if (!isPart4Preview || part4PreviewCompleted || window.parent === window) {
+      return;
+    }
+
+    part4PreviewCompleted = true;
+    window.parent.postMessage({
+      type: "part-4-preview-complete",
+      session: new URLSearchParams(window.location.search).get("previewSession")
+    }, window.location.protocol === "file:" || window.location.origin === "null"
+      ? "*" : window.location.origin);
+  }
+
   if (reduceMotion.matches) {
+    window.PoemLayout.staticLayout();
     if (soundButton && target.textContent.indexOf("(=440)") !== -1) {
       toneReached = true;
       soundButton.textContent = "播放 A · 440 Hz";
     }
 
+    notifyPart4PreviewComplete();
     return;
   }
 
-  var isPart4Preview = document.documentElement.classList.contains(
-    "part-4-preview-root"
-  );
   var settings = {
     initialDelay: isPart4Preview ? 140 : 900,
     characterMin: 64,
@@ -357,18 +376,19 @@
   }
 
   if (part2FirstSection) {
+    window.PoemLayout.part2();
     var part2BlockLines = Array.from(
       part2FirstSection.querySelectorAll(".part-2-block-line")
     );
     var part2BlockWidth = part2BlockLines.reduce(function (width, element) {
       return Math.max(
         width,
-        element.offsetLeft + element.getBoundingClientRect().width
+        element.offsetLeft + window.PoemView.rect(element).width
       );
     }, 0);
 
     if (part2BlockWidth > 0) {
-      part2InitialScale = Math.min(
+      part2InitialScale = window.PoemLayout.isNarrow() ? 1.75 : Math.min(
         1.75,
         Math.max(1, target.clientWidth / part2BlockWidth)
       );
@@ -380,13 +400,29 @@
       ) || 0;
       part2LipsAlignedX = Math.max(
         0,
-        part2BlockWidth - part2LipsLine.getBoundingClientRect().width
+        part2BlockWidth - window.PoemView.rect(part2LipsLine).width
       );
     }
   }
 
+  if (part2FirstSection) {
+    var part2LastViewportWidth = document.documentElement.clientWidth;
+    window.addEventListener("resize", function () {
+      var width = document.documentElement.clientWidth;
+      if (width === part2LastViewportWidth) return;
+      part2LastViewportWidth = width;
+      var metrics = window.PoemLayout.part2Metrics();
+      var currentScale = parseFloat(part2FirstSection.style.getPropertyValue("--part-2-scale")) || 1;
+      var progress = part2InitialScale > 1 ? (currentScale - 1) / (part2InitialScale - 1) : 0;
+      part2InitialScale = metrics.scale;
+      part2LipsAlignedX = metrics.alignedX;
+      part2LipsFinalX = metrics.finalX;
+      part2FirstSection.style.setProperty("--part-2-scale", String(1 + (metrics.scale - 1) * progress));
+    });
+  }
+
   roomFragments.forEach(function (element) {
-    var width = element.getBoundingClientRect().width;
+    var width = window.PoemView.rect(element).width;
     var finalText = element.textContent;
 
     element.setAttribute("data-room-final", finalText);
@@ -395,7 +431,7 @@
   });
 
   parallelFragments.forEach(function (element) {
-    var width = element.getBoundingClientRect().width;
+    var width = window.PoemView.rect(element).width;
     var finalText = element.textContent;
     var textWalker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
     var textNodes = [];
@@ -418,7 +454,7 @@
   }
 
   footnoteMarkers.forEach(function (element) {
-    var width = element.getBoundingClientRect().width;
+    var width = window.PoemView.rect(element).width;
     var finalText = element.textContent;
 
     element.setAttribute("data-footnote-final", finalText);
@@ -469,7 +505,7 @@
   }
 
   waveDecodeElements.forEach(function (element) {
-    var width = element.getBoundingClientRect().width;
+    var width = window.PoemView.rect(element).width;
 
     element.style.width = width + "px";
     element.textContent = roomBaselineStrut;
@@ -610,9 +646,11 @@
         }
 
         fragment.style.setProperty("--gx", rowX.toFixed(2) + "px");
-        rowX += fragment.getBoundingClientRect().width;
+        rowX += window.PoemView.rect(fragment).width;
       });
     });
+
+    window.PoemLayout.part3();
 
     part3IntroElements.forEach(function (element) {
       var lineNode = Array.from(element.childNodes).find(function (node) {
@@ -677,19 +715,28 @@
     });
 
     if (part3SecondSection) {
-      var part3SecondNode = Array.from(
-        part3SecondSection.childNodes
-      ).find(function (node) {
-        return node.nodeType === Node.TEXT_NODE;
-      });
+      // Preserve inline emphasis while revealing each original text node.
+      var part3SecondWalker = document.createTreeWalker(
+        part3SecondSection,
+        NodeFilter.SHOW_TEXT
+      );
+      var part3SecondTextNodes = [];
+      var part3SecondNode;
 
-      if (part3SecondNode) {
-        part3SecondState = {
-          element: part3SecondSection,
+      while ((part3SecondNode = part3SecondWalker.nextNode())) {
+        part3SecondTextNodes.push({
           node: part3SecondNode,
           text: part3SecondNode.data
-        };
+        });
         part3SecondNode.data = "";
+      }
+
+      if (part3SecondTextNodes.length) {
+        part3SecondState = {
+          element: part3SecondSection,
+          textNodes: part3SecondTextNodes,
+          node: part3SecondTextNodes[part3SecondTextNodes.length - 1].node
+        };
         part3SecondSection.style.visibility = "hidden";
       }
     }
@@ -1077,6 +1124,7 @@
     part2SecondState.forEach(function (item) {
       item.node.data = item.text;
       item.element.style.fontSize = item.fontSize.toFixed(1) + "px";
+      item.element.style.setProperty("--part2-line-size", item.fontSize.toFixed(1) + "px");
     });
     part2SecondSection.style.visibility = "visible";
   }
@@ -1110,7 +1158,9 @@
       return;
     }
 
-    part3SecondState.node.data = part3SecondState.text;
+    part3SecondState.textNodes.forEach(function (item) {
+      item.node.data = item.text;
+    });
     part3SecondState.element.style.visibility = "visible";
     part3SecondState.element.classList.remove(
       "is-part3-concurrent-typing"
@@ -1306,7 +1356,7 @@
         }
 
         var currentX = part2LipsAlignedX +
-          distance * (stepIndex / stepCount);
+          (part2LipsFinalX - part2LipsAlignedX) * (stepIndex / stepCount);
 
         part2LipsLine.style.setProperty(
           "--x",
@@ -1648,6 +1698,7 @@
 
       laterInScene(function () {
         state.element.style.fontSize = state.fontSize.toFixed(1) + "px";
+        state.element.style.setProperty("--part2-line-size", state.fontSize.toFixed(1) + "px");
         placeCursorAfter(state.node);
         laterInScene(
           typeCharacter,
@@ -1846,26 +1897,27 @@
         "is-part3-concurrent-typing"
       );
 
-      var parts = segmenter
-        ? Array.from(
-            segmenter.segment(part3SecondState.text),
-            function (part) {
-              return part.segment;
-            }
-          )
-        : Array.from(part3SecondState.text);
       var units = [];
 
-      parts.forEach(function (part) {
-        if (
-          /\s/u.test(part) &&
-          units.length &&
-          /\s/u.test(units[units.length - 1])
-        ) {
-          units[units.length - 1] += part;
-        } else {
-          units.push(part);
-        }
+      part3SecondState.textNodes.forEach(function (item) {
+        var parts = segmenter
+          ? Array.from(segmenter.segment(item.text), function (part) {
+              return part.segment;
+            })
+          : Array.from(item.text);
+
+        parts.forEach(function (part) {
+          var previous = units[units.length - 1];
+
+          if (
+            /\s/u.test(part) && previous &&
+            previous.node === item.node && /\s/u.test(previous.text)
+          ) {
+            previous.text += part;
+          } else {
+            units.push({ node: item.node, text: part });
+          }
+        });
       });
 
       var unitPosition = 0;
@@ -1886,7 +1938,8 @@
           return;
         }
 
-        part3SecondState.node.appendData(units[unitPosition]);
+        var unit = units[unitPosition];
+        unit.node.appendData(unit.text);
         unitPosition += 1;
         laterInScene(typeConcurrentUnit, unitDelay);
       }
@@ -2390,10 +2443,10 @@
         return;
       }
 
-      var sourceRect = cursor.getBoundingClientRect();
+      var sourceRect = window.PoemView.rect(cursor);
       var movementDelayScale = delayScale || 1;
-      var layoutRect = target.getBoundingClientRect();
-      var destinationRect = targetElement.getBoundingClientRect();
+      var layoutRect = window.PoemView.rect(target);
+      var destinationRect = window.PoemView.rect(targetElement);
       var sourceLeft = sourceRect.left - layoutRect.left;
       var sourceTop = sourceRect.top - layoutRect.top;
       var destinationLeft = destinationRect.left - layoutRect.left;
@@ -3328,7 +3381,7 @@
   }
 
   function removeListeners() {
-    window.removeEventListener("pointerdown", skipToNextSection);
+    stopAdvanceTap();
     window.removeEventListener("keydown", handleKeydown);
   }
 
@@ -3404,6 +3457,7 @@
     }
 
     removeListeners();
+    notifyPart4PreviewComplete();
   }
 
   function typeNext() {
@@ -3825,6 +3879,7 @@
     }
 
     removeListeners();
+    notifyPart4PreviewComplete();
   }
 
   function handleKeydown(event) {
@@ -3850,7 +3905,7 @@
     revealAll();
   }
 
-  window.addEventListener("pointerdown", skipToNextSection);
+  stopAdvanceTap = window.PoemLayout.onTap(skipToNextSection);
   window.addEventListener("keydown", handleKeydown);
 
   timer = window.setTimeout(typeNext, settings.initialDelay);

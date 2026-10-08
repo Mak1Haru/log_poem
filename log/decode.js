@@ -1,6 +1,8 @@
 (function () {
   "use strict";
 
+  var stopAdvanceTap = function () {};
+
   var target = document.querySelector(".map");
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -58,7 +60,7 @@
   }
 
   characters.forEach(function (item) {
-    var width = item.element.getBoundingClientRect().width;
+    var width = window.PoemView.rect(item.element).width;
     item.element.style.width = width + "px";
     item.element.style.visibility = "hidden";
   });
@@ -99,7 +101,7 @@
   }
 
   function removeListeners() {
-    window.removeEventListener("pointerdown", revealAll);
+    stopAdvanceTap();
     window.removeEventListener("keydown", handleKeydown);
   }
 
@@ -144,7 +146,7 @@
   }
 
   target.classList.add("is-decoding");
-  window.addEventListener("pointerdown", revealAll);
+  stopAdvanceTap = window.PoemLayout.onTap(revealAll);
   window.addEventListener("keydown", handleKeydown);
 
   characters.forEach(function (item, index) {

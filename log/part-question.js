@@ -1,6 +1,8 @@
 (function () {
   "use strict";
 
+  var stopAdvanceTap = function () {};
+
   var stage = document.querySelector(".part-question .pq-stage");
   var titleElement = stage ? stage.querySelector(".pq-title") : null;
   var openingElement = stage ? stage.querySelector(".pq-opening") : null;
@@ -186,7 +188,7 @@
 
   function fixCharacterWidth(span) {
     if (!span.style.width) {
-      span.style.width = span.getBoundingClientRect().width + "px";
+      span.style.width = window.PoemView.rect(span).width + "px";
     }
   }
 
@@ -435,7 +437,7 @@
   }
 
   function removeSkipListeners() {
-    window.removeEventListener("pointerdown", handlePointerDown);
+    stopAdvanceTap();
     window.removeEventListener("keydown", handleKeydown);
   }
 
@@ -492,7 +494,7 @@
   }
 
   closingElement.addEventListener("click", revealFinal);
-  window.addEventListener("pointerdown", handlePointerDown);
+  stopAdvanceTap = window.PoemLayout.onTap(handlePointerDown);
   window.addEventListener("keydown", handleKeydown);
 
   if (reduceMotion.matches) {

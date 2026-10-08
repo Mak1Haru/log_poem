@@ -1,6 +1,8 @@
 (function () {
   "use strict";
 
+  var stopAdvanceTap = function () {};
+
   var target = document.querySelector(".part-7 .work");
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -24,6 +26,15 @@
   var finished = false;
   var timeouts = [];
   var intervals = [];
+  var headingLength = Array.from(target.textContent.split("\n")[0])
+    .filter(function (character) { return !/\s/u.test(character); }).length;
+  var breathingCharacters = [];
+  var activeBreaths = new Set();
+  var previousBreaths = [];
+  var breathingTimer = 0;
+  var breathRowOrder = [];
+  var breathRowLayout = "";
+  var lastBreathRow = null;
   var asciiSymbols =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" +
     "0123456789!@#$%^&*()-_=+[]{};:,.<>/?\\|~";
@@ -33,8 +44,18 @@
     "天空另一种项链夏天孤独飞翔字符串完整一半";
   var settings = {
     initialDelay: 280,
-    stagger: 5,
-    cycleDelay: 40
+    stagger: 12,
+    cycleDelay: 80,
+    breathStartPause: 1200,
+    breathDurationMin: 10500,
+    breathDurationRange: 4000,
+    breathIntervalMin: 2100,
+    breathIntervalRange: 900,
+    breathWaveStepMin: 1400,
+    breathWaveStepRange: 350,
+    breathClusterSize: 4,
+    breathRadius: 3,
+    breathMinSeparation: 4
   };
 
   while ((currentNode = walker.nextNode())) {
@@ -84,6 +105,201 @@
     return;
   }
 
+  // Keep the heading and punctuation steady; only the poem's Han glyphs breathe.
+  breathingCharacters = characters.filter(function (item, index) {
+    return index >= headingLength && /\p{Script=Han}/u.test(item.finalCharacter);
+  });
+
+  function clearBreath(glyph) {
+    glyph.classList.remove("is-breathing");
+    glyph.style.removeProperty("--part7-breath-duration");
+    glyph.style.removeProperty("--part7-breath-delay");
+    activeBreaths.delete(glyph);
+  }
+
+  function stopBreathing() {
+    window.clearTimeout(breathingTimer);
+    breathingTimer = 0;
+    activeBreaths.forEach(clearBreath);
+    previousBreaths = [];
+    breathRowOrder = [];
+    breathRowLayout = "";
+    lastBreathRow = null;
+  }
+
+  function canBreathe() {
+    return interactive && !reduceMotion.matches && !document.hidden;
+  }
+
+  function breatheNext() {
+    breathingTimer = 0;
+
+    if (!canBreathe()) {
+      stopBreathing();
+      return;
+    }
+
+    var rows = [];
+    var candidates = [];
+    breathingCharacters.forEach(function (item, index) {
+      var bounds = window.PoemView.rect(item.glyph);
+      var row = rows[rows.length - 1];
+
+      if (!row || Math.abs(bounds.y - row.y) > 2) {
+        row = { key: index, y: bounds.y, length: 0, occupied: [], candidates: [] };
+        rows.push(row);
+      }
+
+      row.length += 1;
+      if (activeBreaths.has(item.glyph)) {
+        row.occupied.push(index);
+      } else if (previousBreaths.indexOf(item.glyph) === -1) {
+        var candidate = { item: item, index: index, bounds: bounds };
+        row.candidates.push(candidate);
+        candidates.push(candidate);
+      }
+    });
+    var selected = [];
+    var chosen = null;
+    var layout = rows.map(function (row) { return row.key + ":" + row.length; }).join("|");
+
+    // Rebuild the row rotation when resizing or hover gaps change actual wrapping.
+    if (layout !== breathRowLayout) {
+      breathRowLayout = layout;
+      breathRowOrder = [];
+      lastBreathRow = null;
+    }
+
+    var availableRows = rows.filter(function (row) {
+      row.origins = row.candidates.filter(function (candidate) {
+        return row.occupied.every(function (occupiedIndex) {
+          return Math.abs(candidate.index - occupiedIndex) >= settings.breathMinSeparation;
+        });
+      });
+      return row.origins.length > 0;
+    });
+
+    function rowIsAvailable(key) {
+      return availableRows.some(function (row) { return row.key === key; });
+    }
+
+    // Give each rendered row a turn in shuffled order. Busy rows keep their place.
+    if (!breathRowOrder.some(rowIsAvailable)) {
+      var newOrder = rows.map(function (row) { return row.key; }).filter(function (key) {
+        return breathRowOrder.indexOf(key) === -1;
+      });
+
+      for (var index = newOrder.length - 1; index > 0; index -= 1) {
+        var swapIndex = Math.floor(Math.random() * (index + 1));
+        var swapKey = newOrder[index];
+        newOrder[index] = newOrder[swapIndex];
+        newOrder[swapIndex] = swapKey;
+      }
+
+      breathRowOrder = breathRowOrder.concat(newOrder);
+    }
+
+    var nextRowIndex = breathRowOrder.findIndex(function (key) {
+      return key !== lastBreathRow && rowIsAvailable(key);
+    });
+    if (nextRowIndex === -1) {
+      nextRowIndex = breathRowOrder.findIndex(rowIsAvailable);
+    }
+    if (nextRowIndex !== -1) {
+      lastBreathRow = breathRowOrder.splice(nextRowIndex, 1)[0];
+      var chosenRow = availableRows.find(function (row) { return row.key === lastBreathRow; });
+      chosen = chosenRow.origins[Math.floor(Math.random() * chosenRow.origins.length)];
+    }
+
+    if (chosen) {
+      var origin = chosen.bounds;
+      var neighbors = candidates.filter(function (candidate) {
+        if (candidate === chosen || Math.abs(candidate.index - chosen.index) > settings.breathRadius) {
+          return false;
+        }
+
+        var bounds = candidate.bounds;
+        // Do not carry a breath across a line break or an opened hover gap.
+        return Math.abs(bounds.y - origin.y) < origin.height * .5 &&
+          Math.abs(bounds.x - origin.x) <= origin.width * (settings.breathRadius + .6);
+      });
+      var cluster = [chosen];
+      var leadingSide = Math.random() < .5 ? -1 : 1;
+
+      // Reach the nearest letters first, then spread a little farther to either side.
+      neighbors.sort(function (left, right) {
+        var leftDistance = left.index - chosen.index;
+        var rightDistance = right.index - chosen.index;
+
+        return Math.abs(leftDistance) - Math.abs(rightDistance) ||
+          (leftDistance - rightDistance) * leadingSide;
+      });
+
+      while (cluster.length < settings.breathClusterSize && neighbors.length) {
+        cluster.push(neighbors.shift());
+      }
+
+      cluster.sort(function (left, right) {
+        return Math.abs(left.index - chosen.index) - Math.abs(right.index - chosen.index);
+      });
+
+      var duration = settings.breathDurationMin + Math.random() * settings.breathDurationRange;
+      var waveStep = settings.breathWaveStepMin + Math.random() * settings.breathWaveStepRange;
+      var previousDelay = 0;
+
+      cluster.forEach(function (candidate) {
+        var item = candidate.item;
+        // Let the opacity wave travel outward; even equidistant neighbors are staggered.
+        var delay = candidate === chosen ? 0 : Math.max(
+          Math.abs(candidate.index - chosen.index) * waveStep,
+          previousDelay + waveStep * .85
+        );
+        previousDelay = delay;
+
+        item.glyph.style.setProperty("--part7-breath-duration", duration + "ms");
+        item.glyph.style.setProperty("--part7-breath-delay", delay + "ms");
+        activeBreaths.add(item.glyph);
+        selected.push(item.glyph);
+        item.glyph.classList.add("is-breathing");
+      });
+    }
+
+    previousBreaths = selected;
+    breathingTimer = window.setTimeout(breatheNext,
+      settings.breathIntervalMin + Math.random() * settings.breathIntervalRange);
+  }
+
+  function startBreathing() {
+    if (!canBreathe() || breathingTimer || !breathingCharacters.length) {
+      return;
+    }
+
+    breathingTimer = window.setTimeout(breatheNext, settings.breathStartPause);
+  }
+
+  function syncBreathing() {
+    if (canBreathe()) {
+      startBreathing();
+    } else {
+      stopBreathing();
+    }
+  }
+
+  target.addEventListener("animationend", function (event) {
+    if (event.animationName === "part7-glyph-breathe" && activeBreaths.has(event.target)) {
+      clearBreath(event.target);
+    }
+  });
+  document.addEventListener("visibilitychange", syncBreathing);
+  window.addEventListener("pagehide", stopBreathing);
+  window.addEventListener("pageshow", syncBreathing);
+  reduceMotion.addEventListener("change", function () {
+    if (reduceMotion.matches && !finished) {
+      revealAll();
+    }
+    syncBreathing();
+  });
+
   function clearActiveCharacter() {
     if (!activeCharacter) {
       return;
@@ -104,20 +320,29 @@
   }
 
   characters.forEach(function (item) {
-    var width = item.glyph.getBoundingClientRect().width;
+    var width = window.PoemView.rect(item.glyph).width;
 
     item.glyph.style.width = width + "px";
-    item.element.addEventListener("pointerenter", function () {
-      activateCharacter(item.element);
+    item.element.addEventListener("pointerenter", function (event) {
+      if (event.pointerType !== "touch") activateCharacter(item.element);
     });
-    item.element.addEventListener("pointerleave", function () {
-      if (activeCharacter === item.element) {
+    item.element.addEventListener("pointerleave", function (event) {
+      if (event.pointerType !== "touch" && activeCharacter === item.element) {
         clearActiveCharacter();
       }
     });
   });
 
-  target.addEventListener("pointerleave", clearActiveCharacter);
+  target.addEventListener("pointerleave", function (event) {
+    if (event.pointerType !== "touch") clearActiveCharacter();
+  });
+  window.PoemLayout.onTap(function (event) {
+    if (event.pointerType !== "touch" || !interactive) return;
+    var character = event.target.closest && event.target.closest(".part-7-character");
+    if (!character || activeCharacter === character) clearActiveCharacter();
+    else activateCharacter(character);
+  });
+  window.addEventListener("scroll", clearActiveCharacter, { passive: true });
   window.addEventListener("blur", clearActiveCharacter);
 
   function later(callback, delay) {
@@ -144,7 +369,7 @@
   }
 
   function removeRevealListeners() {
-    window.removeEventListener("pointerdown", revealAll);
+    stopAdvanceTap();
     window.removeEventListener("keydown", handleKeydown);
   }
 
@@ -154,6 +379,7 @@
     target.classList.remove("is-part7-decoding");
     target.classList.add("is-part7-interactive");
     removeRevealListeners();
+    startBreathing();
   }
 
   function markComplete() {
@@ -200,7 +426,7 @@
   });
 
   target.classList.add("is-part7-decoding");
-  window.addEventListener("pointerdown", revealAll);
+  stopAdvanceTap = window.PoemLayout.onTap(revealAll);
   window.addEventListener("keydown", handleKeydown);
 
   characters.forEach(function (item, index) {
