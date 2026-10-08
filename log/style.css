@@ -1025,9 +1025,22 @@ body.part-5.is-part5-vanishing {
   font-display: swap;
 }
 
+@font-face {
+  font-family: "Poem Zhuque Fangsong";
+  src: url("fonts/poem-zhuque-fangsong-v0212.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  /* Match the established STFangsong line metrics, not per-element offsets.
+     A newly typed Fangsong span must not enlarge a mixed-font line box. */
+  ascent-override: 86%;
+  descent-override: 14%;
+  line-gap-override: 0%;
+}
+
 .part-1 .footnote-term,
 .part-1 .footnote-chinese {
-  font-family: "Poem Fangsong", "STFangsong", "FangSong", "仿宋", "Songti SC", "SimSun", serif;
+  font-family: "Poem Fangsong", "Poem Zhuque Fangsong", "STFangsong", "FangSong", "仿宋", "Songti SC", "SimSun", serif;
   font-weight: 400;
   font-synthesis: none;
 }
@@ -1039,7 +1052,7 @@ body.part-5.is-part5-vanishing {
 }
 
 .part-1 .footnote-chinese.poem-oblique {
-  /* The local Fangsong face has no italic cut; allow slant, not faux bold. */
+  /* These Fangsong faces have no italic cut; allow slant, not faux bold. */
   font-synthesis: style;
 }
 

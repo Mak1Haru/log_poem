@@ -1,0 +1,28 @@
+Poem Zhuque Subset
+
+This WOFF2 font is a site-specific subset of Zhuque Fangsong v0.212
+(technical preview), by TrionesType. The glyph outlines and advance widths
+are unchanged. Only the characters used by poem (1)'s Fangsong spans are
+included; the internal font family is renamed to Poem Zhuque Subset.
+
+The subset remains licensed under the SIL Open Font License 1.1.
+See Zhuque-OFL.txt for the original copyright notice and full license.
+
+Official project: https://github.com/TrionesType/zhuque
+Release: https://github.com/TrionesType/zhuque/releases/tag/v0.212
+Source archive: ZhuqueFangsong-v0.212.zip
+Archive SHA-256:
+bb8b661a7643d2296a72d9d10530a00949419c4e527fb61783f73c2ba1a8c062
+Source font: ZhuqueFangsong-Regular.ttf
+
+Regenerate from the repository root (requires fonttools[woff]):
+python scripts/subset-fangsong.py /path/to/ZhuqueFangsong-Regular.ttf
+
+Check that current Fangsong text is covered after editing the poem:
+python scripts/subset-fangsong.py --check
+
+The font is self-hosted beside the website. No external font service is used.
+Installed STFangsong/FangSong remains preferred; devices without it download
+this subset. Body text, English footnotes and superscript numbers are unchanged.
+CSS normalizes only the webfont's ascent, descent and line gap to the existing
+STFangsong line metrics, preventing a jump when a mixed-font phrase is typed.
