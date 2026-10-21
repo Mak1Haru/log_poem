@@ -1018,21 +1018,28 @@ body.part-5.is-part5-vanishing {
 }
 
 @font-face {
-  font-family: "Poem Fangsong";
-  src: local("STFangsong"), local("FangSong"), local("仿宋"), local("仿宋_GB2312");
+  font-family: "Poem Songti";
+  src: local("STSong"), local("华文宋体"),
+    local("STSongti-SC-Regular"), local("Songti SC Regular"),
+    local("SimSun"), local("宋体");
   font-style: normal;
   font-weight: 400;
   font-display: swap;
+  /* Use STSong's native metrics for every local fallback as well, so a
+     newly typed serif span cannot enlarge the surrounding line box. */
+  ascent-override: 86%;
+  descent-override: 14%;
+  line-gap-override: 0%;
 }
 
 @font-face {
-  font-family: "Poem Zhuque Fangsong";
-  src: url("fonts/poem-zhuque-fangsong-v0212.woff2") format("woff2");
+  font-family: "Poem Songti Web";
+  src: url("fonts/poem-songti-light-v2003.woff2") format("woff2");
   font-style: normal;
+  /* Map the Light outlines to the existing emphasis style without faux bold. */
   font-weight: 400;
   font-display: swap;
-  /* Match the established STFangsong line metrics, not per-element offsets.
-     A newly typed Fangsong span must not enlarge a mixed-font line box. */
+  /* Match STSong's line metrics when no local Songti face is available. */
   ascent-override: 86%;
   descent-override: 14%;
   line-gap-override: 0%;
@@ -1040,19 +1047,23 @@ body.part-5.is-part5-vanishing {
 
 .part-1 .footnote-term,
 .part-1 .footnote-chinese {
-  font-family: "Poem Fangsong", "Poem Zhuque Fangsong", "STFangsong", "FangSong", "仿宋", "Songti SC", "SimSun", serif;
+  font-family: "Poem Songti", "Poem Songti Web", serif;
   font-weight: 400;
   font-synthesis: none;
+  /* Match the CJK ink baseline, not only the fonts' alphabetic baselines.
+     The shared em correction is measured from the loaded faces. Relative
+     positioning leaves line boxes, wrapping and superscripts untouched. */
+  position: relative;
+  top: var(--poem-serif-baseline-shift, 0em);
 }
 
 .part-1 .footnote-term {
-  /* Share the surrounding text's baseline, including inside animated fragments.
-     Optical offsets for a previous font must not carry over to Fangsong. */
+  /* Keep the layout baseline stable; the shared ink correction above is visual. */
   vertical-align: baseline;
 }
 
 .part-1 .footnote-chinese.poem-oblique {
-  /* These Fangsong faces have no italic cut; allow slant, not faux bold. */
+  /* These Chinese serif faces have no italic cut; allow slant, not faux bold. */
   font-synthesis: style;
 }
 
@@ -1517,7 +1528,7 @@ body.part-5.is-part5-vanishing {
     width: auto;
     min-height: 24px;
     margin-bottom: 28px;
-    text-align: center;
+    text-align: left;
     white-space: normal;
   }
   :where(html.poem-layout-flow) .part-1 .movement-row-wide {
@@ -1536,11 +1547,12 @@ body.part-5.is-part5-vanishing {
     min-height: 1.55em;
   }
   :where(html.poem-layout-flow) .part-1 .movement-pair {
-    display: inline-grid;
+    display: grid;
     position: relative;
     top: auto;
     left: auto;
-    grid-template-columns: max-content max-content;
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr) max-content;
     align-items: baseline;
     vertical-align: top;
     text-align: left;
@@ -1548,6 +1560,11 @@ body.part-5.is-part5-vanishing {
   }
   :where(html.poem-layout-flow) .part-1 .movement-row-wide .movement-pair {
     display: block;
+  }
+  :where(html.poem-layout-flow) .part-1 .movement-row-name .movement-pair {
+    display: inline-grid;
+    width: auto;
+    grid-template-columns: max-content max-content;
   }
   :where(html.poem-layout-flow) .part-1 .movement-row-name .movement-pair > .footnote-term {
     min-width: 4em;
@@ -1561,8 +1578,10 @@ body.part-5.is-part5-vanishing {
     top: .2em;
   }
   :where(html.poem-layout-flow) .part-1 .parallel-group {
-    display: inline-grid;
+    display: grid;
+    min-width: 0;
     grid-template-columns: max-content max-content;
+    justify-content: space-between;
     align-items: baseline;
     gap: 10px;
     white-space: normal;
@@ -1578,7 +1597,7 @@ body.part-5.is-part5-vanishing {
   }
   :where(html.poem-layout-flow) .part-1 .movement-row-name {
     margin-top: 38px;
-    margin-left: 18px;
+    margin-left: 0;
     text-align: left;
   }
   :where(html.poem-layout-flow) .part-1 .footnote-block {
@@ -1746,65 +1765,8 @@ body.part-5.is-part5-vanishing {
   }
 }
 
-/* The two mobile presentations share text and animation, not line wrapping. */
+/* Preserve the authored type sizes when a mobile device rotates. */
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
-}
-.layout-mode-control { display: none; }
-
-@media (max-width: 919px) {
-  html.poem-layout-original body {
-    width: 920px;
-    min-height: var(--poem-viewport-height, 100vh);
-    margin: 0;
-    zoom: var(--poem-page-scale, 1);
-  }
-  html.poem-layout-original .part-1 .second-movement {
-    min-height: max(560px, calc(var(--poem-viewport-height) - 116px));
-  }
-  html.poem-layout-original .part-1 .footnote-block {
-    max-width: calc(var(--poem-viewport-width) - 56px);
-  }
-  html.poem-layout-original .poem-preview-card {
-    max-width: calc(var(--poem-viewport-width) - 24px);
-    max-height: calc(var(--poem-viewport-height) - 24px);
-  }
-  .layout-mode-control {
-    display: block;
-    position: fixed;
-    right: max(12px, env(safe-area-inset-right));
-    bottom: max(10px, env(safe-area-inset-bottom));
-    z-index: 30;
-    padding: 0;
-    border: 0;
-    color: #858585;
-    background: transparent;
-    font: 11px/1.4 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
-    white-space: nowrap;
-    zoom: calc(1 / var(--poem-page-scale, 1));
-  }
-  .layout-mode-control button {
-    appearance: none;
-    min-height: 40px;
-    padding: 0 4px;
-    border: 0;
-    border-radius: 0;
-    color: inherit;
-    background: transparent;
-    font: inherit;
-    cursor: pointer;
-    touch-action: manipulation;
-  }
-  .part-3 .layout-mode-control {
-    color: inherit;
-  }
-  .layout-mode-control button:hover {
-    text-decoration: underline;
-    text-underline-offset: .25em;
-  }
-  .layout-mode-control button:focus-visible {
-    outline: 1px solid currentColor;
-    outline-offset: 1px;
-  }
 }

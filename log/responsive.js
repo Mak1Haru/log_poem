@@ -11,10 +11,6 @@
     var contact = null;
     function cancel() { contact = null; }
     function down(event) {
-      if (event.target.closest && event.target.closest(".layout-mode-control")) {
-        cancel();
-        return;
-      }
       if (event.pointerType === "mouse" || !event.pointerType) {
         if (event.button === 0) callback(event);
         return;

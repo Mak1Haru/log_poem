@@ -1,8 +1,42 @@
-Poem Zhuque Subset
+Poem Songti Subset (active web fallback)
+
+poem-songti-light-v2003.woff2 is a site-specific subset of Source Han Serif
+CN Light 2.003, from Adobe's official 2.003R release. Its Light outlines and
+advance widths are unchanged. Only the 51 characters currently used by
+poem (1)'s Chinese serif spans are included.
+
+The derivative is named Poem Songti Subset (including its OpenType and CFF
+family names), respecting the OFL Reserved Font Name "Source". The original
+copyright and license metadata are retained. See Songti-OFL.txt for the full
+official SIL Open Font License 1.1 supplied with this release.
+
+Official project: https://github.com/adobe-fonts/source-han-serif
+Release: https://github.com/adobe-fonts/source-han-serif/releases/tag/2.003R
+Source file: SubsetOTF/CN/SourceHanSerifCN-Light.otf
+Source SHA-256:
+e2e51701c3c5da146c0f5a587abd55a7d12e114338bc86cb4d05c316e727c228
+
+Regenerate from the repository root (requires fonttools[woff]):
+python scripts/subset-songti.py /path/to/SourceHanSerifCN-Light.otf
+Check coverage after editing the poem:
+python scripts/subset-songti.py --check
+
+Installed STSong (Huawen Songti) is preferred, with Songti SC Regular and
+SimSun as local alternatives. Devices without a local Songti face download
+this Light subset. CSS maps its unchanged Light outlines to the existing
+400 emphasis style with synthetic bold disabled. No third-party font CDN
+or proprietary system font redistribution is used.
+
+The local and webfont aliases share stable line metrics. footnote-layout.js
+measures their CJK ink against the body face for consistent visual alignment.
+Body text, English footnotes and superscript numbers are unchanged.
+
+
+Poem Zhuque Subset (previous fallback, no longer referenced by the site)
 
 This WOFF2 font is a site-specific subset of Zhuque Fangsong v0.212
 (technical preview), by TrionesType. The glyph outlines and advance widths
-are unchanged. Only the characters used by poem (1)'s Fangsong spans are
+are unchanged. Only the characters used by poem (1)'s Chinese serif spans are
 included; the internal font family is renamed to Poem Zhuque Subset.
 
 The subset remains licensed under the SIL Open Font License 1.1.
@@ -18,11 +52,8 @@ Source font: ZhuqueFangsong-Regular.ttf
 Regenerate from the repository root (requires fonttools[woff]):
 python scripts/subset-fangsong.py /path/to/ZhuqueFangsong-Regular.ttf
 
-Check that current Fangsong text is covered after editing the poem:
+Check that current Chinese serif text is covered after editing the poem:
 python scripts/subset-fangsong.py --check
 
-The font is self-hosted beside the website. No external font service is used.
-Installed STFangsong/FangSong remains preferred; devices without it download
-this subset. Body text, English footnotes and superscript numbers are unchanged.
-CSS normalizes only the webfont's ascent, descent and line gap to the existing
-STFangsong line metrics, preventing a jump when a mixed-font phrase is typed.
+This previous asset and its license are retained for reference and rollback.
+The active stylesheet now uses the Songti subset documented above.
