@@ -12,7 +12,7 @@
 <pre id="results">Running…</pre>
 <script type="module">
 const results = document.querySelector('#results');
-const css = new URL('../log/style.css?v=mobile-interaction-4', location.href).href;
+const css = new URL('../log/style.css?v=mobile-caret-5', location.href).href;
 const failures = [];
 let checks = 0;
 function check(condition, message) {
@@ -53,11 +53,16 @@ for (const width of [320, 390, 430]) {
       const anchor = cursor.getBoundingClientRect();
       const style = win.getComputedStyle(cursor);
       const size = parseFloat(style.fontSize);
+      const paint = win.getComputedStyle(cursor, '::before');
+      const paintedBottom = anchor.top - parseFloat(paint.bottom);
+      const paintedHeight = parseFloat(paint.height);
       const work = doc.querySelector('.work');
       const height = work.getBoundingClientRect().height;
       check(anchor.width === 0 && anchor.height === 0, `${width} ${bodyClass}: caret occupies layout space`);
-      check(anchor.top + size * .13 >= glyph.top && anchor.top - size * .92 <= glyph.bottom,
+      check(paintedBottom >= glyph.top && paintedBottom - paintedHeight <= glyph.bottom,
         `${width} ${bodyClass}: caret detached from character ${text.length}`);
+      check(paintedHeight <= size * .92,
+        `${width} ${bodyClass}: caret taller than the current text size`);
       if (glyph.top > line.getBoundingClientRect().top + size * 1.2) wrapped++;
       cursor.remove();
       check(Math.abs(work.getBoundingClientRect().height - height) < .1,
@@ -69,6 +74,25 @@ for (const width of [320, 390, 430]) {
     check(win.getComputedStyle(cursor).display === 'none', `${width} ${bodyClass}: hidden caret is visible`);
     view.remove();
   }
+}
+// Cursor size follows the local text size in positioned scenes too; it must
+// not inherit a large line box from headings, zoomed blocks or the terminal.
+for (const [bodyClass, markup, selector] of [
+  ['part-1', '<span class="movement-row"><span class="typewriter-cursor"></span></span>', '.typewriter-cursor'],
+  ['part-2', '<span class="part-2-line"><span class="typewriter-cursor is-part2-line-start"></span></span>', '.typewriter-cursor'],
+  ['part-2', '<span class="part-2-pull-word"><span class="typewriter-cursor is-part2-pull-insert"></span></span>', '.typewriter-cursor'],
+  ['part-3', '<span class="part-3-fragment"><span class="typewriter-cursor"></span></span>', '.typewriter-cursor'],
+  ['part-6', '<span class="part-6-open-command"><span class="part-6-cursor"></span></span>', '.part-6-cursor']
+]) {
+  const view = await frame(390, bodyClass, `<pre class="work">${markup}</pre>`);
+  const caret = view.contentDocument.querySelector(selector);
+  for (const size of [11, 14, 19]) {
+    caret.parentElement.style.fontSize = `${size}px`;
+    const style = view.contentWindow.getComputedStyle(caret);
+    check(Math.abs(parseFloat(style.height) - size * .9) < .05,
+      `${bodyClass}/${size}: positioned caret does not follow the local font size`);
+  }
+  view.remove();
 }
 // Changing the corruption overlay may not move any underlying poem glyph.
 for (const width of [320, 390, 430, 1280]) {
