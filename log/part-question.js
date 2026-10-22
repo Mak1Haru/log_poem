@@ -117,7 +117,10 @@
   function showCorruptionSymbol(span) {
     var symbol = randomSymbol(span.dataset.finalCharacter);
 
-    span.textContent = symbol;
+    // Keep the original glyph in the text flow. Replacing it with an ASCII
+    // glyph (and an inline-block) changes mobile line breaks and baselines.
+    // Only the painted overlay changes while the poem dissolves.
+    span.dataset.corruption = symbol;
     span.classList.toggle(
       "is-ascii-corruption",
       /^[\x00-\x7f]$/u.test(symbol)
@@ -183,16 +186,9 @@
     }
   }
 
-  function fixCharacterWidth(span) {
-    if (!span.style.width) {
-      span.style.width = window.PoemView.rect(span).width + "px";
-    }
-  }
-
   function corruptCharacter(state, span) {
     var cycles = 0;
 
-    fixCharacterWidth(span);
     state.pendingCorruptions += 1;
     span.classList.add("is-corrupting");
 
@@ -275,7 +271,6 @@
     state.pendingCorruptions = 0;
 
     state.spans.forEach(function (span) {
-      fixCharacterWidth(span);
       span.textContent = span.dataset.finalCharacter;
       span.classList.remove("is-ascii-corruption");
       span.classList.add("is-corrupting", "is-dissolved");
@@ -334,7 +329,6 @@
         window.setTimeout(function () {
           var cycles = 0;
 
-          fixCharacterWidth(span);
           span.classList.add("is-corrupting");
 
           function vanishCycle() {
@@ -364,7 +358,6 @@
 
   function instantlyHidePersistentState(state) {
     state.spans.forEach(function (span) {
-      fixCharacterWidth(span);
       span.classList.add("is-corrupting", "is-dissolved");
     });
   }
@@ -491,7 +484,7 @@
   }
 
   closingElement.addEventListener("click", revealFinal);
-  stopAdvanceTap = window.PoemLayout.onTap(handlePointerDown);
+  stopAdvanceTap = window.PoemLayout.onAdvance(handlePointerDown);
   window.addEventListener("keydown", handleKeydown);
 
   if (reduceMotion.matches) {

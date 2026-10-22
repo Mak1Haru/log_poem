@@ -6,13 +6,42 @@
   function isNarrow() { return narrow.matches && window.PoemView.isFlow(); }
 
   // A scroll, long press, or pinch must never be mistaken for advancing a poem.
-  function onTap(callback, surface) {
+  function onTap(callback, surface, confirmAdvance) {
     surface = surface || window;
     var contact = null;
-    function cancel() { contact = null; }
+    var firstTap = null;
+    var lastAdvance = -Infinity;
+    function cancel() { contact = null; firstTap = null; }
+    function isControl(event) {
+      return event.target && event.target.closest && event.target.closest(
+        "a, button, input, select, textarea, summary, [role='button'], " +
+        "[contenteditable], .room-window, .poem-preview-card"
+      );
+    }
+    function deliver(event) {
+      if (confirmAdvance && isControl(event)) { cancel(); return; }
+      var touch = event.pointerType === "touch" || event.pointerType === "pen";
+      if (!confirmAdvance || (!touch && !isNarrow())) {
+        callback(event);
+        return;
+      }
+      // Skipping is deliberately different from activating a button or a word:
+      // two quick taps nearby, then a cooldown so repeated taps skip only once.
+      var now = Date.now();
+      if (now - lastAdvance < 900) { firstTap = null; return; }
+      var previous = firstTap;
+      firstTap = { time: now, x: event.clientX, y: event.clientY };
+      if (!previous || now - previous.time > 350 ||
+          Math.abs(event.clientX - previous.x) > 24 ||
+          Math.abs(event.clientY - previous.y) > 24) return;
+      firstTap = null;
+      lastAdvance = now;
+      callback(event);
+    }
     function down(event) {
+      if (confirmAdvance && isControl(event)) { cancel(); return; }
       if (event.pointerType === "mouse" || !event.pointerType) {
-        if (event.button === 0) callback(event);
+        if (event.button === 0) deliver(event);
         return;
       }
       if (event.isPrimary === false) { cancel(); return; }
@@ -27,15 +56,17 @@
           Math.abs(event.clientY - contact.y) > 10)) cancel();
     }
     function up(event) {
+      if (confirmAdvance && isControl(event)) { cancel(); return; }
       var start = contact;
-      cancel();
-      if (!start || start.id !== event.pointerId ||
+      contact = null;
+      if (!start) return;
+      if (start.id !== event.pointerId ||
           Date.now() - start.time > 500 ||
           Math.abs(event.clientX - start.x) > 10 ||
           Math.abs(event.clientY - start.y) > 10 ||
           Math.abs(window.scrollY - start.scrollY) > 4 ||
-          Math.abs(window.scrollX - start.scrollX) > 4) return;
-      callback(event);
+          Math.abs(window.scrollX - start.scrollX) > 4) { cancel(); return; }
+      deliver(event);
     }
     surface.addEventListener("pointerdown", down, { passive: true });
     window.addEventListener("pointermove", move, { passive: true });
@@ -43,6 +74,7 @@
     window.addEventListener("pointercancel", cancel, { passive: true });
     window.addEventListener("scroll", cancel, { passive: true });
     window.addEventListener("blur", cancel);
+    window.addEventListener("contextmenu", cancel);
     return function () {
       surface.removeEventListener("pointerdown", down);
       window.removeEventListener("pointermove", move);
@@ -50,6 +82,7 @@
       window.removeEventListener("pointercancel", cancel);
       window.removeEventListener("scroll", cancel);
       window.removeEventListener("blur", cancel);
+      window.removeEventListener("contextmenu", cancel);
       cancel();
     };
   }
@@ -217,6 +250,7 @@
 
   window.PoemLayout = {
     onTap: onTap,
+    onAdvance: function (callback, surface) { return onTap(callback, surface, true); },
     staticLayout: staticLayout,
     isNarrow: function () { return isNarrow() && !preview; },
     part2: layoutPart2,

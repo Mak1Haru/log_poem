@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Mobile typing layout regression checks</title>
+<style>
+  body { font: 14px system-ui; }
+  iframe { display: block; height: 260px; border: 1px solid #ddd; }
+  pre { white-space: pre-wrap; }
+</style>
+<h1>Mobile typing layout regression checks</h1>
+<p>Open this file through the repository's local preview server. These checks use the real stylesheet in narrow iframes.</p>
+<pre id="results">Running…</pre>
+<script type="module">
+const results = document.querySelector('#results');
+const css = new URL('../log/style.css?v=mobile-interaction-4', location.href).href;
+const failures = [];
+let checks = 0;
+function check(condition, message) {
+  checks++;
+  if (!condition) failures.push(message);
+}
+async function frame(width, bodyClass, content) {
+  const element = document.createElement('iframe');
+  element.style.width = `${width}px`;
+  const loaded = new Promise(resolve => element.onload = resolve);
+  element.srcdoc = `<!doctype html><html class="${width < 920 ? 'poem-layout-flow' : 'poem-layout-original'}"><link rel="stylesheet" href="${css}"><body class="${bodyClass}">${content}</body></html>`;
+  document.body.append(element);
+  await loaded;
+  await element.contentDocument.fonts.ready;
+  return element;
+}
+const cases = [
+  ['part-1', '<pre class="work"><span class="first-movement"><span id="line"></span></span></pre>'],
+  ['part-2', '<pre class="work part-2-layout"><span class="part-2-line part-2-heading-line" id="line" style="--x:0px;--y:35.5px"></span></pre>'],
+  ['part-5', '<pre class="work"><span class="part-5-copy" id="line"></span></pre>'],
+  ['part-question', '<pre class="work pq-stage"><span class="pq-paragraph" id="line"></span></pre>']
+];
+for (const width of [320, 390, 430]) {
+  for (const [bodyClass, markup] of cases) {
+    const view = await frame(width, bodyClass, markup);
+    const doc = view.contentDocument, win = view.contentWindow;
+    const line = doc.querySelector('#line');
+    const text = doc.createTextNode('');
+    const cursor = doc.createElement('span');
+    cursor.className = 'typewriter-cursor' + (bodyClass === 'part-question' ? ' pq-cursor' : '');
+    line.append(text, cursor);
+    let wrapped = 0;
+    for (const character of '我们都被美抓住要害无法不去编织玉脂色的谎一个两个三个。第31次重新睁眼，这座城市也还是那把椅子。') {
+      text.appendData(character);
+      const range = doc.createRange();
+      range.setStart(text, text.length - 1); range.setEnd(text, text.length);
+      const glyph = range.getBoundingClientRect();
+      const anchor = cursor.getBoundingClientRect();
+      const style = win.getComputedStyle(cursor);
+      const size = parseFloat(style.fontSize);
+      const work = doc.querySelector('.work');
+      const height = work.getBoundingClientRect().height;
+      check(anchor.width === 0 && anchor.height === 0, `${width} ${bodyClass}: caret occupies layout space`);
+      check(anchor.top + size * .13 >= glyph.top && anchor.top - size * .92 <= glyph.bottom,
+        `${width} ${bodyClass}: caret detached from character ${text.length}`);
+      if (glyph.top > line.getBoundingClientRect().top + size * 1.2) wrapped++;
+      cursor.remove();
+      check(Math.abs(work.getBoundingClientRect().height - height) < .1,
+        `${width} ${bodyClass}: removing caret changes line height`);
+      line.append(cursor);
+    }
+    check(wrapped > 0, `${width} ${bodyClass}: test must exercise a soft wrap`);
+    cursor.hidden = true;
+    check(win.getComputedStyle(cursor).display === 'none', `${width} ${bodyClass}: hidden caret is visible`);
+    view.remove();
+  }
+}
+// Changing the corruption overlay may not move any underlying poem glyph.
+for (const width of [320, 390, 430, 1280]) {
+  const view = await frame(width, 'part-question', '<pre class="work pq-stage"><span class="pq-paragraph" id="line"></span></pre>');
+  const doc = view.contentDocument, line = doc.querySelector('#line');
+  for (const char of '石头即是在地的星星（可是谁来记录石头的移动呢？）目光成为少女的渐近线。objectivity / symbolon，仍在原地。'.repeat(2)) {
+    const span = doc.createElement('span');
+    span.className = 'pq-character'; span.textContent = char; line.append(span);
+  }
+  const spans = [...line.children];
+  const before = spans.map(span => span.getBoundingClientRect());
+  for (let i = 0; i < spans.length; i++) {
+    spans[i].dataset.corruption = i % 2 ? '^' : '波';
+    spans[i].classList.add('is-corrupting');
+    spans[i].classList.toggle('is-ascii-corruption', !!(i % 2));
+    spans[i].classList.toggle('is-dissolved', i % 3 === 0);
+    check(spans.every((span, j) => {
+      const now = span.getBoundingClientRect();
+      return Math.abs(now.x - before[j].x) < .1 && Math.abs(now.y - before[j].y) < .1;
+    }), `${width}: corruption moved existing text at character ${i}`);
+  }
+  view.remove();
+}
+// The final sentence stays on one line and reserves its full width before
+// typing, even when only a few pixels remain after the closing question.
+for (const width of [320, 390, 430]) {
+  for (const remaining of [30, 75, 150]) {
+    const view = await frame(width, 'part-question', '<pre class="work pq-stage"><span id="prefix" style="display:inline-block;height:1px"></span><span class="pq-final" aria-label="你又是哪一朵呢？" hidden></span></pre>');
+    const doc = view.contentDocument, win = view.contentWindow;
+    const work = doc.querySelector('.work'), final = doc.querySelector('.pq-final');
+    doc.querySelector('#prefix').style.width = `${work.clientWidth - remaining}px`;
+    check(win.getComputedStyle(final).display === 'none', `${width}: final sentence revealed too early`);
+    final.hidden = false;
+    const start = final.getBoundingClientRect();
+    for (const character of final.getAttribute('aria-label')) {
+      const span = doc.createElement('span');
+      span.className = 'pq-character'; span.textContent = character; final.append(span);
+      const bounds = final.getBoundingClientRect();
+      check(Math.abs(bounds.x - start.x) < .1 && Math.abs(bounds.width - start.width) < .1,
+        `${width}/${remaining}: final phrase moved while typing`);
+      const lines = new Set([...final.children].map(child => child.getBoundingClientRect().y));
+      check(lines.size === 1, `${width}/${remaining}: final phrase wrapped`);
+      check(bounds.right <= doc.documentElement.clientWidth, `${width}: final phrase overflows`);
+    }
+    view.remove();
+  }
+}
+results.textContent = `${checks} checks; ${failures.length} failures\n${failures.join('\n')}`;
+results.dataset.failures = String(failures.length);
+</script>
+</html>

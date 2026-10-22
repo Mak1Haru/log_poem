@@ -423,7 +423,7 @@
   });
 
   target.classList.add("is-part7-decoding");
-  stopAdvanceTap = window.PoemLayout.onTap(revealAll);
+  stopAdvanceTap = window.PoemLayout.onAdvance(revealAll);
   window.addEventListener("keydown", handleKeydown);
 
   characters.forEach(function (item, index) {

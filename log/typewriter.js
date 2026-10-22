@@ -3905,7 +3905,7 @@
     revealAll();
   }
 
-  stopAdvanceTap = window.PoemLayout.onTap(skipToNextSection);
+  stopAdvanceTap = window.PoemLayout.onAdvance(skipToNextSection);
   window.addEventListener("keydown", handleKeydown);
 
   timer = window.setTimeout(typeNext, settings.initialDelay);

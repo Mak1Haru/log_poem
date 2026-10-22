@@ -877,11 +877,20 @@ body.part-5.is-part5-vanishing {
 }
 
 .part-question .pq-character.is-corrupting {
-  display: inline-block;
-  color: inherit;
+  position: relative;
+  visibility: hidden;
 }
 
-.part-question .pq-character.is-ascii-corruption {
+.part-question .pq-character.is-corrupting:not(.is-dissolved)::after {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: visible;
+  color: inherit;
+  content: attr(data-corruption);
+}
+
+.part-question .pq-character.is-ascii-corruption::after {
   transform: scaleX(1.18);
   transform-origin: left center;
 }
@@ -915,6 +924,10 @@ body.part-5.is-part5-vanishing {
 
 .typewriter-cursor.is-finished {
   animation: typewriter-cursor-blink .82s steps(1, end) infinite;
+}
+
+.typewriter-cursor[hidden] {
+  display: none;
 }
 
 .part-4 .typewriter-cursor.is-part4-moving {
@@ -1434,6 +1447,8 @@ body.part-5.is-part5-vanishing {
   }
   html.poem-layout-flow:not(.part-4-preview-root) body {
     width: 100%;
+    /* Keep scrolling and pinch zoom; double taps now confirm animation skip. */
+    touch-action: manipulation;
     min-height: 100svh;
     margin: 0;
     padding: max(88px, calc(env(safe-area-inset-top) + 70px))
@@ -1653,9 +1668,34 @@ body.part-5.is-part5-vanishing {
   :where(html.poem-layout-flow) .part-2 .part-2-second-section .part-2-line {
     font-size: calc(var(--part2-line-size, 16px) * .875) !important;
   }
-  :where(html.poem-layout-flow) .part-2 .part-2-first-section .typewriter-cursor:not(.is-part2-line-start):not(.is-part2-pull-insert) {
+  /* A mobile caret follows the text's actual baseline, including soft wraps.
+     Reserve no inline width or height: the painted caret must not push a word
+     onto another line or change a line box when it leaves. Keep the explicit
+     insertion/movement cursors in their own positioning systems. */
+  :where(html.poem-layout-flow) .part-1 .first-movement .typewriter-cursor,
+  :where(html.poem-layout-flow) .part-2 .part-2-line .typewriter-cursor:not(.is-part2-line-start):not(.is-part2-pull-insert),
+  :where(html.poem-layout-flow) .part-5 .typewriter-cursor,
+  :where(html.poem-layout-flow) .part-question .pq-cursor {
+    position: relative;
     top: auto;
-    transform: translateY(.25em);
+    width: 0;
+    height: 0;
+    margin-left: 0;
+    vertical-align: baseline;
+    transform: none;
+    background: transparent;
+  }
+  :where(html.poem-layout-flow) .part-1 .first-movement .typewriter-cursor::before,
+  :where(html.poem-layout-flow) .part-2 .part-2-line .typewriter-cursor:not(.is-part2-line-start):not(.is-part2-pull-insert)::before,
+  :where(html.poem-layout-flow) .part-5 .typewriter-cursor::before,
+  :where(html.poem-layout-flow) .part-question .pq-cursor::before {
+    position: absolute;
+    left: .12em;
+    bottom: -.13em;
+    width: .55em;
+    height: 1.05em;
+    background: currentColor;
+    content: "";
   }
   :where(html.poem-layout-flow) .part-3 .part-3-layout {
     box-sizing: border-box;
@@ -1681,6 +1721,19 @@ body.part-5.is-part5-vanishing {
   }
   :where(html.poem-layout-flow) .part-question .pq-stage {
     min-height: calc(100svh - 152px);
+  }
+  :where(html.poem-layout-flow) .part-question .pq-final:not([hidden]) {
+    display: inline-block;
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+  :where(html.poem-layout-flow) .part-question .pq-final:not([hidden])::after {
+    /* Reserve the full sentence before the first typed character so the
+       unbroken phrase cannot jump to a new line halfway through typing. */
+    display: block;
+    height: 0;
+    visibility: hidden;
+    content: attr(aria-label);
   }
   html.poem-layout-flow:not(.part-4-preview-root) .part-4 .part-4-layout {
     height: 450px;
