@@ -116,7 +116,7 @@ test("restricted storage and geometry work without a layout selector", () => {
 test("every poem and index load the new uncached automatic layout assets", () => {
   for (const name of ["index", "part-1", "part-2", "part-3", "part-4", "part-5", "part-6", "part-7", "part-question"]) {
     const html = readFileSync(new URL(`../log/${name}.html`, import.meta.url), "utf8");
-    for (const [asset, version] of [["layout-mode.js", "auto-mobile-1"], ["responsive.js", "touch-skip-1"], ["style.css", "mobile-caret-5"]]) {
+    for (const [asset, version] of [["layout-mode.js", "auto-mobile-1"], ["responsive.js", "touch-skip-1"], ["style.css", "mobile-stable-7"]]) {
       assert.ok(html.includes(`${asset}?v=${version}`), `${name}: ${asset}`);
     }
   }

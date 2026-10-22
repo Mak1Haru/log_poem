@@ -1,58 +1,148 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>Part 5 typing checkpoints</title>
-<style>body{font:14px system-ui;margin:8px} iframe{display:block;border:1px solid #ddd;height:844px}pre{white-space:pre-wrap}</style>
-<h1>Part 5 typing checkpoints</h1><pre id="report">Running…</pre><div id="frames"></div>
+<title>Part 5 live typing regression</title>
+<style>
+  body { margin: 8px; font: 14px system-ui; }
+  iframe { display: block; border: 1px solid #ddd; height: 874px; }
+  pre { white-space: pre-wrap; }
+  body.live { margin: 0; background: #ddd; }
+  .live .diagnostics { display: none; }
+  .live iframe { border: 0; }
+</style>
+<h1 class="diagnostics">Part 5 live typing regression</h1>
+<pre class="diagnostics" id="report">Running…</pre>
+<div id="frames"></div>
 <script type="module">
-const source = await (await fetch('../log/part-5.html')).text();
-const poem = new DOMParser().parseFromString(source,'text/html').querySelector('.work').outerHTML;
-const css = new URL('../log/style.css?v=mobile-caret-5',location.href).href;
-const report = {cases:[], failures:[]};
-for (const width of [320,390,430]) {
-  const frame = document.createElement('iframe'); frame.style.width=width+'px';
-  const loaded = new Promise(resolve=>frame.onload=resolve);
-  frame.srcdoc = '<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN"><html class="poem-layout-flow"><link rel="stylesheet" href="'+css+'"><body class="part-5">'+poem+'</body></html>';
-  document.querySelector('#frames').append(frame); await loaded;
-  const doc=frame.contentDocument, win=frame.contentWindow;
-  await doc.fonts.ready;
-  const work=doc.querySelector('.work'), spinner=doc.querySelector('.part-5-spinner');
-  const walker=doc.createTreeWalker(doc.querySelector('.part-5-copy'),NodeFilter.SHOW_TEXT);
-  const states=[]; let node;
-  while(node=walker.nextNode()) { states.push({node,text:node.data}); node.data=''; }
-  const caret=doc.createElement('span');caret.className='typewriter-cursor';
-  let changes=0, caretChanges=0, maxHeightRatio=0, count=0, maxHeight=0;
-  const checkpoints=[];
-  for (const state of states) for (const char of state.text) {
-    state.node.appendData(char);state.node.after(caret);count++;
-    if (!/\S/u.test(char)) continue;
-    const range=doc.createRange();range.setStart(state.node,state.node.length-1);range.setEnd(state.node,state.node.length);
-    const end=range.getBoundingClientRect();
-    const height=parseFloat(win.getComputedStyle(caret,'::before').height);
-    maxHeight=Math.max(maxHeight,height); maxHeightRatio=Math.max(maxHeightRatio,height/end.height);
-    if(height>parseFloat(win.getComputedStyle(caret).fontSize)*.92) report.failures.push(`${width}: oversized caret at ${count}`);
-    const withCaret=work.getBoundingClientRect().height;
-    caret.remove();
-    if(Math.abs(work.getBoundingClientRect().height-withCaret)>.1)caretChanges++;
-    state.node.after(caret);
-    // An inactive spinner must not insert an empty line while a poem is typed.
-    const before=work.getBoundingClientRect().height;
-    spinner.remove();const without=work.getBoundingClientRect().height;
-    work.append(spinner);
-    if(Math.abs(before-without)>.1) {changes++; if(checkpoints.length<8)checkpoints.push({tail:state.node.data.slice(-18),before,without});}
+const params = new URLSearchParams(location.search);
+const live = params.get('live') === '1';
+document.body.classList.toggle('live', live);
+const source = await (await fetch('../log/part-5.html?v=mobile-stable-6', { cache: 'no-store' })).text();
+const base = new URL('../log/', location.href).href;
+const report = { cases: [], failures: [] };
+
+// This runs before the real typewriter.js, recording the original, fully laid
+// out poem. Tests then watch the actual animation, not a simplified imitation.
+function observeTyping(fast) {
+  const nativeTimeout = window.setTimeout.bind(window);
+  if (fast) window.setTimeout = (fn, delay, ...args) => nativeTimeout(fn, Math.min(delay, 1), ...args);
+  const work = document.querySelector('.work');
+  const copy = document.querySelector('.part-5-copy');
+  const original = copy.textContent;
+  const expected = [];
+  const walker = document.createTreeWalker(copy, NodeFilter.SHOW_TEXT);
+  let text;
+  while ((text = walker.nextNode())) {
+    let offset = 0;
+    for (const character of text.data) {
+      const range = document.createRange();
+      range.setStart(text, offset); offset += character.length;
+      range.setEnd(text, offset);
+      expected.push({ character, bounds: range.getBoundingClientRect() });
+    }
   }
-  report.cases.push({width,mode:doc.compatMode,characters:count,spinnerLayoutChanges:changes,caretLayoutChanges:caretChanges,maxHeight,maxHeightRatio,checkpoints});
-  if(changes)report.failures.push(`${width}: hidden spinner changes the typing layout ${changes} times`);
-  if(caretChanges)report.failures.push(`${width}: caret changes the typing layout ${caretChanges} times`);
-  caret.remove();
-  const restingHeight=work.getBoundingClientRect().height;
-  spinner.classList.add('is-active');spinner.textContent='-';
-  const activeHeight=work.getBoundingClientRect().height;
-  if(Math.abs(activeHeight-restingHeight)>.1)report.failures.push(`${width}: starting spinner adds a line`);
-  for(const symbol of ['\\','|','/','-']) {
-    spinner.textContent=symbol;
-    if(Math.abs(work.getBoundingClientRect().height-activeHeight)>.1)report.failures.push(`${width}: spinner frame changes line height`);
+  const originalHeight = work.getBoundingClientRect().height;
+  const result = { width: innerWidth, checks: 0, failures: [], spinnerFrames: [] };
+  const errors = new Set();
+  let complete = false;
+  function check(condition, message) {
+    result.checks++;
+    if (!condition && !errors.has(message)) {
+      errors.add(message);
+      result.failures.push(message);
+    }
   }
-  // Leave the authored paragraph visible so the line breaks can be inspected.
+  function boundsOf(glyph) {
+    const range = document.createRange();
+    range.selectNodeContents(glyph);
+    return range.getBoundingClientRect();
+  }
+  // The 五 sits directly over the second 正, keeping both original sizes.
+  check(copy.querySelector('.part-5-number')?.textContent === '（五）',
+    'Chapter label must retain its full-width parentheses');
+  const numberRange = document.createRange(), titleRange = document.createRange();
+  numberRange.setStart(copy.querySelector('.part-5-number').firstChild, 1);
+  numberRange.setEnd(copy.querySelector('.part-5-number').firstChild, 2);
+  titleRange.setStart(copy.querySelector('.part-5-title').firstChild, 1);
+  titleRange.setEnd(copy.querySelector('.part-5-title').firstChild, 2);
+  const numberBounds = numberRange.getBoundingClientRect(), titleBounds = titleRange.getBoundingClientRect();
+  check(Math.abs((numberBounds.left + numberBounds.right - titleBounds.left - titleBounds.right) / 2) < .25,
+    'The chapter glyph must be centered over the second title glyph');
+  function sample() {
+    if (complete) return;
+    const glyphs = [...copy.querySelectorAll('.part-5-glyph')];
+    check(glyphs.length === expected.length, 'All glyphs must be reserved before typing');
+    glyphs.forEach((glyph, index) => {
+      const item = expected[index];
+      if (!item || !/\S/u.test(item.character)) return;
+      const bounds = boundsOf(glyph);
+      check(Math.abs(bounds.x - item.bounds.x) < .25 && Math.abs(bounds.y - item.bounds.y) < .25,
+        'Text moved from its final layout at index ' + index + ' (' + item.character + ')');
+    });
+    check(Math.abs(work.getBoundingClientRect().height - originalHeight) < .25,
+      'Typing or spinner changed the poem height');
+
+    const caret = copy.querySelector('.typewriter-cursor');
+    if (caret && getComputedStyle(caret).display !== 'none' && glyphs.length) {
+      let current = -1;
+      glyphs.forEach((glyph, index) => { if (glyph.classList.contains('is-revealed')) current = index; });
+      let index = Math.max(0, current);
+      let start = current < 0;
+      if (expected[index].character === '\n' && glyphs[index + 1]) {
+        index++; start = true;
+      }
+      const glyphBounds = boundsOf(glyphs[index]);
+      const caretBounds = caret.getBoundingClientRect();
+      const size = parseFloat(getComputedStyle(glyphs[index]).fontSize);
+      const x = (start ? glyphBounds.left : glyphBounds.right) + size * .12;
+      check(Math.abs(caretBounds.left - x) < .25, 'Caret is detached horizontally');
+      check(Math.abs((caretBounds.top + caretBounds.bottom - glyphBounds.top - glyphBounds.bottom) / 2) < .25,
+        'Caret is detached vertically');
+      check(Math.abs(caretBounds.height - size * 1.05) < .05, 'Caret lost its original height');
+      check(getComputedStyle(caret, '::before').content === 'none', 'Duplicate pseudo caret');
+    }
+    const spinner = work.querySelector('.part-5-spinner');
+    if (spinner.classList.contains('is-active')) {
+      if (!result.spinnerFrames.includes(spinner.textContent)) result.spinnerFrames.push(spinner.textContent);
+      check(copy.textContent === original, 'The poem text changed or duplicated');
+      check(glyphs.every(glyph => glyph.classList.contains('is-revealed')), 'Spinner started before the poem finished');
+      check(getComputedStyle(caret).display === 'none', 'Typing caret remains visible during spinner');
+      if (result.spinnerFrames.length === 4) {
+        complete = true;
+        observer.disconnect();
+        document.documentElement.dataset.typingTest = JSON.stringify(result);
+        parent.postMessage({ type: 'part5-typing-result', result }, '*');
+      }
+    }
+  }
+  const observer = new MutationObserver(sample);
+  observer.observe(work, { childList: true, subtree: true, characterData: true, attributes: true });
+  nativeTimeout(() => {
+    if (!complete) {
+      result.failures.push('Animation did not complete within the test timeout');
+      parent.postMessage({ type: 'part5-typing-result', result }, '*');
+    }
+  }, fast ? 15000 : 180000);
 }
-document.querySelector('#report').textContent=JSON.stringify(report,null,2);
+
+for (const width of live ? [Number(params.get('width')) || 402] : [320, 390, 402, 430]) {
+  const frame = document.createElement('iframe');
+  frame.title = 'Mobile poem ' + width;
+  frame.style.width = width + 'px';
+  const completed = new Promise(resolve => {
+    function receive(event) {
+      if (event.source !== frame.contentWindow || event.data?.type !== 'part5-typing-result') return;
+      window.removeEventListener('message', receive);
+      resolve(event.data.result);
+    }
+    window.addEventListener('message', receive);
+  });
+  const probe = '<script>(' + observeTyping.toString() + ')(' + !live + ');<\/script>';
+  frame.srcdoc = source.replace('<HEAD>', '<HEAD><BASE HREF="' + base + '">')
+    .replace(/<SCRIPT SRC="typewriter\.js/, probe + '<SCRIPT SRC="typewriter.js');
+  document.querySelector('#frames').append(frame);
+  const result = await completed;
+  report.cases.push(result);
+  report.failures.push(...result.failures.map(message => width + ': ' + message));
+  document.querySelector('#report').textContent = JSON.stringify(report, null, 2);
+}
 </script>

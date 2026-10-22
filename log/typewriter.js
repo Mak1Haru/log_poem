@@ -355,6 +355,13 @@
   var part4TriggerHandler = null;
   var part4LipsHandler = null;
   var isPart5 = document.body.classList.contains("part-5");
+  // Lay out the complete mobile poem once, including punctuation and the
+  // title's font metrics. Revealing ink must not reflow already typed text.
+  var stablePart5 = isPart5 && window.PoemLayout.isNarrow();
+  var part5Copy = target.querySelector(".part-5-copy");
+  var stablePart5Glyphs = [];
+  var stableCursorNode = null;
+  var stableCursorAtStart = false;
   var part5SpinnerWord = target.querySelector(".part-5-spinner-word");
   var part5Spinner = target.querySelector(".part-5-spinner");
   var part5SpinnerRunning = false;
@@ -364,6 +371,7 @@
 
   if (isPart5) {
     document.documentElement.classList.add("part-5-root");
+    if (stablePart5) target.classList.add("has-stable-typing");
   }
 
   if (part2LeadLine) {
@@ -938,14 +946,28 @@
         })
       : Array.from(node.data);
 
+    var reserved = stablePart5 && part5Copy.contains(node);
+    var fragment = reserved ? document.createDocumentFragment() : null;
     parts.forEach(function (character) {
+      var glyph = null;
+      var textNode = node;
+      if (reserved) {
+        glyph = document.createElement("span");
+        glyph.className = "part-5-glyph";
+        textNode = document.createTextNode(character);
+        glyph.appendChild(textNode);
+        fragment.appendChild(glyph);
+        stablePart5Glyphs.push(glyph);
+      }
       characters.push({
-        node: node,
-        character: character
+        node: textNode,
+        character: character,
+        reserved: glyph
       });
     });
 
-    node.data = "";
+    if (reserved) node.parentNode.replaceChild(fragment, node);
+    else node.data = "";
   });
 
   if (!characters.length) {
@@ -960,7 +982,12 @@
     return item.node;
   });
 
-  if (
+  if (stablePart5) {
+    part5Copy.appendChild(cursor);
+    positionStableCursor(firstTextItem.node, true);
+    window.addEventListener("resize", refreshStableCursor);
+    if (document.fonts) document.fonts.ready.then(refreshStableCursor);
+  } else if (
     part2FirstState.length &&
     part2FirstState[0].node.parentNode
   ) {
@@ -1006,8 +1033,44 @@
   var inSecondMovement = false;
   var activeSceneSkip = null;
 
+  function appendCharacter(item) {
+    if (item.reserved) item.reserved.classList.add("is-revealed");
+    else item.node.appendData(item.character);
+  }
+
+  function refreshStableCursor() {
+    if (stableCursorNode) positionStableCursor(stableCursorNode, stableCursorAtStart);
+  }
+
+  function positionStableCursor(node, atStart) {
+    stableCursorNode = node;
+    stableCursorAtStart = !!atStart;
+    var glyph = node.parentElement;
+    var index = stablePart5Glyphs.indexOf(glyph);
+    var start = !!atStart;
+    // A newline's own rect is at the end of the previous line. The next
+    // reserved glyph gives the real start of the new (possibly blank) line.
+    if (node.data === "\n" && stablePart5Glyphs[index + 1]) {
+      glyph = stablePart5Glyphs[index + 1];
+      start = true;
+    }
+    var range = document.createRange();
+    range.selectNodeContents(glyph);
+    var bounds = range.getBoundingClientRect();
+    var origin = target.getBoundingClientRect();
+    var size = parseFloat(window.getComputedStyle(glyph).fontSize);
+    cursor.style.fontSize = size + "px";
+    cursor.style.left = ((start ? bounds.left : bounds.right) - origin.left + size * .12) + "px";
+    cursor.style.top = (bounds.top - origin.top + (bounds.height - size * 1.05) / 2) + "px";
+  }
+
   function placeCursorAfter(node) {
     if (!node || !node.parentNode) {
+      return;
+    }
+
+    if (stablePart5 && node.parentElement.classList.contains("part-5-glyph")) {
+      positionStableCursor(node, false);
       return;
     }
 
@@ -3383,6 +3446,7 @@
   function removeListeners() {
     stopAdvanceTap();
     window.removeEventListener("keydown", handleKeydown);
+    if (stablePart5) window.removeEventListener("resize", refreshStableCursor);
   }
 
   function keepCursorBlinking() {
@@ -3557,7 +3621,7 @@
         /[\t \u00a0]/u.test(characters[position].character)
       ) {
         var whitespace = characters[position];
-        whitespace.node.appendData(whitespace.character);
+        appendCharacter(whitespace);
         placeCursorAfter(whitespace.node);
         recordTypedCharacter(whitespace.character);
         position += 1;
@@ -3585,7 +3649,7 @@
         /[\t \u00a0]/u.test(characters[position].character)
       ) {
         var inlineWhitespace = characters[position];
-        inlineWhitespace.node.appendData(inlineWhitespace.character);
+        appendCharacter(inlineWhitespace);
         recordTypedCharacter(inlineWhitespace.character);
         position += 1;
       }
@@ -3640,7 +3704,7 @@
     }
 
     var item = characters[position];
-    item.node.appendData(item.character);
+    appendCharacter(item);
     placeCursorAfter(item.node);
     recordTypedCharacter(item.character);
     position += 1;
@@ -3693,7 +3757,7 @@
         break;
       }
 
-      item.node.appendData(item.character);
+      appendCharacter(item);
       recordTypedCharacter(item.character);
       lastNode = item.node;
       position += 1;
@@ -3708,7 +3772,7 @@
             characters[position].character === newline
           ) {
             var extraNewline = characters[position];
-            extraNewline.node.appendData(extraNewline.character);
+            appendCharacter(extraNewline);
             recordTypedCharacter(extraNewline.character);
             lastNode = extraNewline.node;
             position += 1;
@@ -3841,7 +3905,7 @@
       var item = characters[position];
 
       if (item.node) {
-        item.node.appendData(item.character);
+        appendCharacter(item);
         revealedLastNode = item.node;
       }
 

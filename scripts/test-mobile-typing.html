@@ -12,7 +12,7 @@
 <pre id="results">Running…</pre>
 <script type="module">
 const results = document.querySelector('#results');
-const css = new URL('../log/style.css?v=mobile-caret-5', location.href).href;
+const css = new URL('../log/style.css?v=mobile-stable-7', location.href).href;
 const failures = [];
 let checks = 0;
 function check(condition, message) {
@@ -61,8 +61,8 @@ for (const width of [320, 390, 430]) {
       check(anchor.width === 0 && anchor.height === 0, `${width} ${bodyClass}: caret occupies layout space`);
       check(paintedBottom >= glyph.top && paintedBottom - paintedHeight <= glyph.bottom,
         `${width} ${bodyClass}: caret detached from character ${text.length}`);
-      check(paintedHeight <= size * .92,
-        `${width} ${bodyClass}: caret taller than the current text size`);
+      check(Math.abs(paintedHeight - size * 1.05) < .05,
+        `${width} ${bodyClass}: caret does not retain its original text-relative size`);
       if (glyph.top > line.getBoundingClientRect().top + size * 1.2) wrapped++;
       cursor.remove();
       check(Math.abs(work.getBoundingClientRect().height - height) < .1,
@@ -89,7 +89,7 @@ for (const [bodyClass, markup, selector] of [
   for (const size of [11, 14, 19]) {
     caret.parentElement.style.fontSize = `${size}px`;
     const style = view.contentWindow.getComputedStyle(caret);
-    check(Math.abs(parseFloat(style.height) - size * .9) < .05,
+    check(Math.abs(parseFloat(style.height) - size * (bodyClass === 'part-6' ? 1.08 : 1.05)) < .05,
       `${bodyClass}/${size}: positioned caret does not follow the local font size`);
   }
   view.remove();

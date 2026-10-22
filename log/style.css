@@ -471,8 +471,18 @@ html.part-4-preview-root {
   font-size: 11px;
 }
 
+.part-5 {
+  --part-5-title-size: 15.5px;
+}
+
 .part-5 .part-5-title {
-  font-size: 15.5px;
+  font-size: var(--part-5-title-size);
+}
+
+.part-5 .part-5-number {
+  /* Center the three full-width chapter glyphs over the three title glyphs.
+     A fixed typographic inset stays put while the label is being typed. */
+  margin-inline-start: calc(1.5 * var(--part-5-title-size) - 1.5em);
 }
 
 .part-5 .part-5-oblique {
@@ -535,6 +545,32 @@ body.part-5.is-part5-vanishing {
 .part-5 .part-5-spinner.is-active {
   display: inline-block;
   visibility: visible;
+}
+
+.part-5 .work.has-stable-typing {
+  position: relative;
+}
+
+.part-5-glyph {
+  visibility: hidden;
+}
+
+.part-5-glyph.is-revealed {
+  visibility: visible;
+}
+
+/* The caret is painted over the reserved layout, not inserted between glyphs.
+   Its coordinates come from the current glyph, including the larger title. */
+.part-5 .work.has-stable-typing .typewriter-cursor {
+  position: absolute;
+  width: .55em;
+  height: 1.05em;
+  margin-left: 0;
+  background: currentColor;
+}
+
+.part-5 .work.has-stable-typing .typewriter-cursor::before {
+  content: none;
 }
 
 .part-6 {
@@ -1675,11 +1711,6 @@ body.part-5.is-part5-vanishing {
      Reserve no inline width or height: the painted caret must not push a word
      onto another line or change a line box when it leaves. Keep the explicit
      insertion/movement cursors in their own positioning systems. */
-  :where(html.poem-layout-flow) .typewriter-cursor,
-  :where(html.poem-layout-flow) .part-6 .part-6-cursor {
-    height: .9em;
-    vertical-align: -.06em;
-  }
   :where(html.poem-layout-flow) .part-1 .first-movement .typewriter-cursor,
   :where(html.poem-layout-flow) .part-2 .part-2-line .typewriter-cursor:not(.is-part2-line-start):not(.is-part2-pull-insert),
   :where(html.poem-layout-flow) .part-5 .typewriter-cursor,
@@ -1699,9 +1730,9 @@ body.part-5.is-part5-vanishing {
   :where(html.poem-layout-flow) .part-question .pq-cursor::before {
     position: absolute;
     left: .12em;
-    bottom: -.06em;
+    bottom: -.13em;
     width: .55em;
-    height: .9em;
+    height: 1.05em;
     background: currentColor;
     content: "";
   }
