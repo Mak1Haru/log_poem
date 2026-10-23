@@ -1,0 +1,138 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Word and terminal typing regression</title>
+<style>
+  body { margin:8px; font:14px system-ui; }
+  iframe { display:block; height:874px; border:1px solid #ddd; }
+  pre { white-space:pre-wrap; }
+  body.live { margin:0; background:#ddd; }
+  .live .diagnostics { display:none; }
+  .live iframe { border:0; }
+</style>
+<h1 class="diagnostics">Word and terminal typing regression</h1>
+<pre id="report" class="diagnostics">Running…</pre>
+<div id="frames"></div>
+<script type="module">
+const params = new URLSearchParams(location.search);
+const live = params.get('live') === '1';
+document.body.classList.toggle('live', live);
+const base = new URL('../log/', location.href).href;
+const report = { cases:[], failures:[] };
+
+function observe(page, fast) {
+  const nativeTimeout = window.setTimeout.bind(window);
+  if (fast) window.setTimeout = (fn, delay, ...args) => nativeTimeout(fn, Math.min(delay, 2), ...args);
+  const result = { page, width:innerWidth, checks:0, failures:[], partialWordSeen:false };
+  const errors = new Set();
+  let complete = false;
+  function check(ok, message) {
+    result.checks++;
+    if (!ok && !errors.has(message)) { errors.add(message); result.failures.push(message); }
+  }
+  function rect(node, start, end) {
+    const range = document.createRange();
+    range.setStart(node, start); range.setEnd(node, end);
+    return range.getBoundingClientRect();
+  }
+  function done() {
+    if (complete) return;
+    complete = true; observer.disconnect();
+    document.documentElement.dataset.typingTest = JSON.stringify(result);
+    parent.postMessage({type:'word-terminal-result',result}, '*');
+  }
+  const ink = document.querySelector('.typing-word-ink');
+  // Compare the actual partial and completed word in the same viewport.
+  // The pre-animation whole poem can have a scrollbar that the typed intro
+  // does not, so its different available width is not a valid reference.
+  let wordPrevious = [];
+  if (ink) result.wordFrames = [];
+  let terminalExpected = null;
+  function sample() {
+    if (complete) return;
+    if (page === 'part-1') {
+      if (!document.querySelector('.work').classList.contains('is-typing')) return;
+      const text = ink.firstChild;
+      if (text.data === 'a') result.partialWordSeen = true;
+      if (text.data) result.wordFrames.push({text:text.data,bounds:rect(text,0,1).toJSON()});
+      for (let i=0;i<wordPrevious.length;i++) {
+        const b = rect(text,i,i+1), expected = wordPrevious[i];
+        check(Math.abs(b.x-expected.x)<.3 && Math.abs(b.y-expected.y)<.3,
+          'The already-visible '+text.data[i]+' moved when the next letter appeared');
+      }
+      wordPrevious=Array.from(text.data,(_,i)=>rect(text,i,i+1));
+      const caret = ink.querySelector('.typewriter-cursor');
+      if (caret && text.length && innerWidth < 920) {
+        const b = rect(text,text.length-1,text.length), anchor = caret.getBoundingClientRect();
+        const pseudo = getComputedStyle(caret,'::before'), size = parseFloat(getComputedStyle(caret).fontSize);
+        check(Math.abs(anchor.left + parseFloat(pseudo.left) - b.right - size*.12)<.3,
+          'Word caret is not beside the typed letter');
+        check(Math.abs(parseFloat(pseudo.height)-size*1.05)<.1,'Word caret height changed');
+      }
+      if (text.data === 'am') {
+        check(result.partialWordSeen,'The word must still appear letter by letter');
+        done();
+      }
+    } else {
+      const open = document.querySelector('.part-6-open-command');
+      if (fast && !open.disabled && !open.getAttribute('aria-expanded').includes('true')) open.click();
+      if (document.querySelector('.part-6-vi-screen').hidden) return;
+      const copy = document.querySelector('.part-6-vi-copy');
+      const glyphs = [...document.querySelectorAll('.part-6-file-glyph')];
+      const expectedText = 'READ ONLY / WRITE ONLY\n仅可读取 / 仅可写入';
+      check(glyphs.map(g=>g.textContent).join('')===expectedText,'Terminal copy changed');
+      const bounds = glyphs.map(g=>rect(g.firstChild,0,g.firstChild.length));
+      if (!terminalExpected) terminalExpected = bounds;
+      glyphs.forEach((g,i)=> {
+        if (g.textContent==='\n') return;
+        check(Math.abs(bounds[i].x-terminalExpected[i].x)<.25 && Math.abs(bounds[i].y-terminalExpected[i].y)<.25,
+          'Terminal character '+i+' shifted during typing');
+      });
+      const split = glyphs.findIndex(g=>g.textContent==='\n'), origin = copy.getBoundingClientRect();
+      for (const [a,b] of [[0,split-1],[split+1,glyphs.length-1]]) {
+        check(Math.abs((bounds[a].left+bounds[b].right-origin.left-origin.right)/2)<.3,
+          'Final terminal line is no longer centered');
+      }
+      const cursor = document.querySelector('.part-6-file-cursor');
+      if (!cursor.hidden) {
+        let i = -1;glyphs.forEach((g,n)=>{if(g.classList.contains('is-revealed'))i=n;});
+        let start = i<0;i=Math.max(0,i);
+        if (glyphs[i].textContent==='\n') {i++;start=true;}
+        const b=bounds[i], c=cursor.getBoundingClientRect(), size=parseFloat(getComputedStyle(cursor).fontSize);
+        check(Math.abs(c.left-(start?b.left:b.right)-size*.12)<.3,'Terminal caret is not at the active character');
+        check(Math.abs((c.top+c.bottom-b.top-b.bottom)/2)<.3,'Terminal caret is not vertically aligned');
+        check(Math.abs(c.height-size)<.1,'Terminal caret height changed');
+      }
+      if (document.querySelector('.part-6-quit-command').getAttribute('aria-disabled')==='false') {
+        check(glyphs.every(g=>g.classList.contains('is-revealed')),'Quit enabled before all file text appeared');
+        check(cursor.hidden,'File caret must hide when the quit command starts');
+        check(document.querySelector('.part-6-quit-command').getAttribute('href')==='part-7.html','Quit destination changed');
+        done();
+      }
+    }
+  }
+  const observer = new MutationObserver(sample);
+  observer.observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true});
+  nativeTimeout(()=>{if(!complete){result.failures.push('Timed out');done();}},fast?20000:180000);
+}
+
+for (const page of live ? [params.get('page')||'part-1'] : ['part-1','part-6']) {
+  const source = await (await fetch('../log/'+page+'.html?v=stable-word-terminal-1',{cache:'no-store'})).text();
+  for (const width of live ? [Number(params.get('width'))||402] : [320,390,402,430,1280]) {
+    const frame=document.createElement('iframe');frame.title=page+' '+width;frame.style.width=width+'px';
+    const completed=new Promise(resolve=>{
+      function receive(e){if(e.source!==frame.contentWindow||e.data?.type!=='word-terminal-result')return;window.removeEventListener('message',receive);resolve(e.data.result);}
+      window.addEventListener('message',receive);
+    });
+    const probe='<script>('+observe.toString()+')('+JSON.stringify(page)+','+(!live||params.get('fast')==='1')+');<\/script>';
+    const script=page==='part-1'?'typewriter.js':'part-6.js';
+    frame.srcdoc=source.replace('<HEAD>','<HEAD><BASE HREF="'+base+'">').replace('<SCRIPT SRC="'+script,probe+'<SCRIPT SRC="'+script);
+    // Negative control: recreate the original growing inline word to prove
+    // this test actually detects the 402px a -> am line jump.
+    if (params.get('control')==='1' && page==='part-1') frame.srcdoc=frame.srcdoc.replace('</HEAD>',
+      '<STYLE>.typing-word{display:inline!important;white-space:normal!important}.typing-word::before{content:none!important}.typing-word-ink{position:static!important}</STYLE></HEAD>');
+    document.querySelector('#frames').append(frame);
+    const result=await completed;report.cases.push(result);report.failures.push(...result.failures.map(m=>page+' '+width+': '+m));
+    document.querySelector('#report').textContent=JSON.stringify(report,null,2);
+  }
+}
+</script>

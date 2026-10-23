@@ -17,6 +17,9 @@
   var quitText = ":q!";
   var opened = false;
   var quitReady = false;
+  var fileGlyphs = [];
+  var fileCursorIndex = 0;
+  var fileCursorAtStart = true;
 
   if (
     !shell ||
@@ -35,6 +38,28 @@
     return window.setTimeout(callback, delay);
   }
 
+  function positionFileCursor(index, atStart) {
+    fileCursorIndex = index;
+    fileCursorAtStart = !!atStart;
+    var glyph = fileGlyphs[index];
+    if (!glyph || fileCursor.hidden) return;
+    if (glyph.textContent === "\n" && fileGlyphs[index + 1]) {
+      glyph = fileGlyphs[index + 1];
+      atStart = true;
+    }
+    var range = document.createRange();
+    range.selectNodeContents(glyph);
+    var bounds = range.getBoundingClientRect();
+    var origin = fileText.parentElement.getBoundingClientRect();
+    var size = parseFloat(window.getComputedStyle(glyph).fontSize);
+    fileCursor.style.left = ((atStart ? bounds.left : bounds.right) - origin.left + size * .12) + "px";
+    fileCursor.style.top = (bounds.top - origin.top + (bounds.height - fileCursor.offsetHeight) / 2) + "px";
+  }
+
+  function refreshFileCursor() {
+    positionFileCursor(fileCursorIndex, fileCursorAtStart);
+  }
+
   function typeText(options) {
     var parts = "Segmenter" in Intl
       ? Array.from(
@@ -48,6 +73,15 @@
     var position = 0;
     var atLineStart = true;
 
+    function append(character) {
+      if (options.glyphs) {
+        options.glyphs[position].classList.add("is-revealed");
+        positionFileCursor(position, false);
+      } else {
+        options.node.appendData(character);
+      }
+    }
+
     function typeNext() {
       if (position >= parts.length) {
         options.done();
@@ -56,7 +90,7 @@
 
       if (atLineStart) {
         while (position < parts.length && parts[position] === " ") {
-          options.node.appendData(parts[position]);
+          append(parts[position]);
           position += 1;
         }
         atLineStart = false;
@@ -68,7 +102,7 @@
       }
 
       var character = parts[position];
-      options.node.appendData(character);
+      append(character);
       position += 1;
 
       if (character === "\n") {
@@ -109,7 +143,9 @@
   }
 
   function showCompleteVi() {
-    fileText.firstChild.data = fileCopy;
+    fileGlyphs.forEach(function (glyph) {
+      glyph.classList.add("is-revealed");
+    });
     fileCursor.hidden = true;
     quitCommand.firstChild.data = quitText;
     commandCursor.hidden = false;
@@ -137,8 +173,9 @@
       }
 
       fileCursor.hidden = false;
+      positionFileCursor(0, true);
       typeText({
-        node: fileText.firstChild,
+        glyphs: fileGlyphs,
         text: fileCopy,
         characterMin: 78,
         characterRange: 28,
@@ -157,7 +194,15 @@
   }
 
   openCommand.appendChild(document.createTextNode(""));
-  fileText.appendChild(document.createTextNode(""));
+  Array.from(fileCopy).forEach(function (character) {
+    var glyph = document.createElement("span");
+    glyph.className = "part-6-file-glyph";
+    glyph.textContent = character;
+    fileText.appendChild(glyph);
+    fileGlyphs.push(glyph);
+  });
+  window.addEventListener("resize", refreshFileCursor);
+  if (document.fonts) document.fonts.ready.then(refreshFileCursor);
   quitCommand.appendChild(document.createTextNode(""));
   openCommand.addEventListener("click", openVi, { once: true });
   quitCommand.addEventListener("click", function (event) {

@@ -660,6 +660,20 @@ body.part-5.is-part5-vanishing {
   text-align: center;
 }
 
+/* Keep both complete lines centered while only their ink is revealed. */
+.part-6 .part-6-file-glyph {
+  visibility: hidden;
+}
+
+.part-6 .part-6-file-glyph.is-revealed {
+  visibility: visible;
+}
+
+.part-6 .part-6-vi-copy .part-6-file-cursor {
+  position: absolute;
+  margin-left: 0;
+}
+
 .part-6 .part-6-vi-empty-top {
   top: 0;
 }
@@ -1566,6 +1580,21 @@ body.part-5.is-part5-vanishing {
   }
   :where(html.poem-layout-flow) .part-1 .first-movement {
     line-height: 1.75;
+  }
+  /* Reserve the whole word before typing its first letter. The hidden copy
+     supplies natural font metrics, so no measured width or pixel offset is needed. */
+  :where(html.poem-layout-flow) .part-1 .typing-word {
+    display: inline-block;
+    position: relative;
+    white-space: pre;
+  }
+  :where(html.poem-layout-flow) .part-1 .typing-word::before {
+    content: attr(data-typing-word);
+    visibility: hidden;
+  }
+  :where(html.poem-layout-flow) .part-1 .typing-word-ink {
+    position: absolute;
+    inset: 0;
   }
   :where(html.poem-layout-flow) .part-1 .wave-scramble-line {
     max-width: min(12em, calc(100vw - 180px));
