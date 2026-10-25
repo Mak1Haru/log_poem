@@ -46,11 +46,12 @@ function checkDownloadLayout(track) {
   check(`${track.dataset.track}: download touch targets fit their columns`, links.every(link => link.getBoundingClientRect().height >= 44 && link.scrollWidth <= link.clientWidth));
 }
 function waitForCover(doc, id) {
+  const filename = id === 'cyclic-rain' ? 'cyclic_rain' : id;
   return new Promise(resolve => {
     const start = performance.now();
     function checkImage() {
       const image = doc.querySelector('#cover-image');
-      if (new URL(image.src).pathname.endsWith(`/covers/${id}.png`) && image.complete && image.naturalWidth > 0 && !image.hidden && doc.querySelector('#cover-surface').dataset.transitioning !== 'true') return resolve(true);
+      if (new URL(image.src).pathname.endsWith(`/covers/${filename}.png`) && image.complete && image.naturalWidth > 0 && !image.hidden && doc.querySelector('#cover-surface').dataset.transitioning !== 'true') return resolve(true);
       if (performance.now() - start > 4000) return resolve(false);
       requestAnimationFrame(checkImage);
     }
@@ -84,16 +85,16 @@ preview.addEventListener('load', async () => {
   check('all three songs offer both WAV and MP3', doc.querySelectorAll('.download-link').length === 6 && !doc.querySelector('.pending') && [...doc.querySelectorAll('[data-track]')].every(track => [...track.querySelectorAll('.file-meta')].map(meta => meta.textContent.split(' / ')[0]).join(',') === 'WAV,MP3'));
   const expectedFiles = [
     { id: 'transparent-flower', name: '透明花_Inst.wav', bytes: 101536634 },
-    { id: 'circular-rain', name: '环形雨_Inst.wav', bytes: 74119930 },
+    { id: 'cyclic-rain', stem: 'cyclic_rain_inst', name: '环形雨_Inst.wav', bytes: 74119930 },
     { id: 'daydream', name: '白日梦_Inst.wav', bytes: 75701730 },
     { id: 'transparent-flower', name: '透明花_Inst.mp3', bytes: 10537054 },
-    { id: 'circular-rain', name: '环形雨_Inst.mp3', bytes: 10242334 },
+    { id: 'cyclic-rain', stem: 'cyclic_rain_inst', name: '环形雨_Inst.mp3', bytes: 10242334 },
     { id: 'daydream', name: '白日梦_Inst.mp3', bytes: 10461214 },
   ];
   for (const file of expectedFiles) {
     const extension = file.name.split('.').pop();
     const link = doc.querySelector(`[data-track="${file.id}"] .download-link[download="${file.name}"]`);
-    check(`${file.id} ${extension}: original download name and correct song file`, link && link.href.endsWith(`/audio/${file.id}-inst.${extension}`) && !link.hasAttribute('target'));
+    check(`${file.id} ${extension}: original download name and correct song file`, link && link.href.endsWith(`/audio/${file.stem || file.id + '-inst'}.${extension}`) && !link.hasAttribute('target'));
     check(`${file.id} ${extension}: displayed size matches the source`, link?.querySelector('.file-meta').textContent === `${extension.toUpperCase()} / ${(file.bytes / 1000000).toFixed(1)} MB`);
     try {
       const response = await fetch(link.href, { method: 'HEAD' });
@@ -116,7 +117,7 @@ preview.addEventListener('load', async () => {
   check('page, frame mat and image backgrounds share pure white', [doc.documentElement, doc.body, doc.querySelector('.cover-surface'), doc.querySelector('#cover-image')].every(node => win.getComputedStyle(node).backgroundColor === 'rgb(255, 255, 255)'));
   check('artwork has a small inner margin', doc.querySelector('#cover-image').getBoundingClientRect().left - coverBounds.left === 11);
   if (!win.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    doc.querySelector('[data-track="circular-rain"]').dispatchEvent(new win.PointerEvent('pointerenter', { pointerType: 'mouse' }));
+    doc.querySelector('[data-track="cyclic-rain"]').dispatchEvent(new win.PointerEvent('pointerenter', { pointerType: 'mouse' }));
     check('cover changes pass through a blended frame', await waitForBlend(doc));
     check('an opaque base prevents a white flash', win.getComputedStyle(doc.querySelector('.cover-layer')).opacity === '1');
     doc.querySelector('[data-track="daydream"]').dispatchEvent(new win.PointerEvent('pointerenter', { pointerType: 'mouse' }));
@@ -124,7 +125,7 @@ preview.addEventListener('load', async () => {
     check('interrupted fade settles on the latest image', await waitForCover(doc, 'daydream'));
     check('rapid changes reuse at most three image layers', doc.querySelectorAll('.cover-layer').length <= 3);
   }
-  for (const id of ['circular-rain', 'daydream', 'transparent-flower']) {
+  for (const id of ['cyclic-rain', 'daydream', 'transparent-flower']) {
     doc.querySelector(`[data-track="${id}"]`).dispatchEvent(new win.PointerEvent('pointerenter', { pointerType: 'mouse' }));
     check(`${id}: hover selects the corresponding image`, await waitForCover(doc, id));
     const selectedCover = doc.querySelector('#cover-image');
@@ -133,12 +134,12 @@ preview.addEventListener('load', async () => {
     const bounds = doc.querySelector('.cover-surface').getBoundingClientRect();
     check('switching covers does not shift layout', bounds.width === coverBounds.width && bounds.height === coverBounds.height);
   }
-  for (const id of ['circular-rain', 'daydream', 'transparent-flower']) {
+  for (const id of ['cyclic-rain', 'daydream', 'transparent-flower']) {
     doc.querySelector(`[data-track="${id}"]`).dispatchEvent(new win.PointerEvent('pointerenter', { pointerType: 'mouse' }));
   }
   check('rapid pointer changes preserve the latest requested cover', await waitForCover(doc, 'transparent-flower'));
-  doc.querySelector('[data-track="circular-rain"] summary').focus();
-  check('keyboard focus selects cover', await waitForCover(doc, 'circular-rain'));
+  doc.querySelector('[data-track="cyclic-rain"] summary').focus();
+  check('keyboard focus selects cover', await waitForCover(doc, 'cyclic-rain'));
   doc.querySelector('[data-track="daydream"] summary').click();
   trackList.dispatchEvent(new win.PointerEvent('pointerleave', { pointerType: 'touch' }));
   check('touch click keeps the selected cover after lifting finger', await waitForCover(doc, 'daydream'));
@@ -172,7 +173,7 @@ for (const button of document.querySelectorAll('[data-width]')) {
         { label: '外部链接测试', href: 'https://example.com/audio', external: true },
         { label: '不安全链接', href: 'javascript:alert(1)' },
       ] },
-      { id: 'circular-rain', title: '环形雨', files: [{ label: '空地址', href: '' }] },
+      { id: 'cyclic-rain', title: '环形雨', files: [{ label: '空地址', href: '' }] },
     ],
   };
   fixture.addEventListener('load', () => {
@@ -192,7 +193,7 @@ for (const button of document.querySelectorAll('[data-width]')) {
       check('only valid, non-empty download URLs render', links.length === 2);
       check('local file uses a download link', links[0]?.hasAttribute('download') && !links[0]?.hasAttribute('target'));
       check('external page opens safely in a new tab', links[1]?.target === '_blank' && links[1]?.rel === 'noopener noreferrer');
-      check('empty track remains unavailable', doc.querySelector('[data-track="circular-rain"] .pending') !== null);
+      check('empty track remains unavailable', doc.querySelector('[data-track="cyclic-rain"] .pending') !== null);
       check('old usage configuration does not restore removed content', !doc.querySelector('#usage-copy, .usage'));
     }, { once: true });
     doc.body.append(script);

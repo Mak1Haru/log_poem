@@ -18,10 +18,10 @@ window.INST_CATALOG = {
       ],
     },
     {
-      id: "circular-rain", title: "环形雨", cover: "covers/circular-rain.png?v=2x",
+      id: "cyclic-rain", title: "环形雨", cover: "covers/cyclic_rain.png?v=2x",
       files: [
-        { label: "伴奏", href: "audio/circular-rain-inst.wav", filename: "环形雨_Inst.wav", format: "WAV", size: "74.1 MB" },
-        { label: "伴奏", href: "audio/circular-rain-inst.mp3", filename: "环形雨_Inst.mp3", format: "MP3", size: "10.2 MB" },
+        { label: "伴奏", href: "audio/cyclic_rain_inst.wav", filename: "环形雨_Inst.wav", format: "WAV", size: "74.1 MB" },
+        { label: "伴奏", href: "audio/cyclic_rain_inst.mp3", filename: "环形雨_Inst.mp3", format: "MP3", size: "10.2 MB" },
       ],
     },
     {
