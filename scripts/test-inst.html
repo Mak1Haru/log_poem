@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<title>Instrumental page regression checks</title>
+<style>
+  body { margin: 0; background: #eee; font: 13px monospace; }
+  iframe { display: block; width: 402px; height: 1300px; border: 0; background: white; }
+  pre, nav { margin: 20px; }
+  button { margin-right: 10px; padding: 10px; }
+  #fixture { position: absolute; left: -2000px; top: 0; width: 402px; }
+</style>
+<iframe id="preview" src="../discography/" title="Mobile instrumental preview"></iframe>
+<nav aria-label="Test widths">
+  <button data-width="320">320 px</button><button data-width="402">402 px</button>
+  <button data-width="768">768 px</button><button data-width="1280">1280 px</button>
+</nav>
+<pre id="results">Checking…</pre>
+<iframe id="fixture" title="Download configuration test" aria-hidden="true" tabindex="-1"></iframe>
+<script>
+const results = document.querySelector('#results');
+const preview = document.querySelector('#preview');
+const fixture = document.querySelector('#fixture');
+const lines = [];
+function check(label, condition) {
+  lines.push(`${condition ? 'PASS' : 'FAIL'} ${label}`);
+  results.textContent = lines.join('\n');
+}
+function layoutCheck() {
+  const doc = preview.contentDocument;
+  const width = doc.documentElement.clientWidth;
+  check(`no horizontal overflow at ${preview.style.width || '402px'}`, doc.documentElement.scrollWidth <= width);
+  const rows = [...doc.querySelectorAll('summary')];
+  check('all three touch targets are at least 44px tall', rows.length === 3 && rows.every(row => row.getBoundingClientRect().height >= 44));
+  check('correct song order', [...doc.querySelectorAll('.track-name')].map(node => node.textContent).join(',') === '透明花,环形雨,白日梦');
+  check('track numbering matches order', [...doc.querySelectorAll('.track-number')].map(node => node.textContent).join(',') === '01,02,03');
+  const header = doc.querySelector('.site-header').getBoundingClientRect();
+  const label = doc.querySelector('.site-name').getBoundingClientRect();
+  check('header label aligns right', Math.abs(header.right - label.right) < 1);
+  for (const track of doc.querySelectorAll('.track[open]')) checkDownloadLayout(track);
+}
+function checkDownloadLayout(track) {
+  const links = [...track.querySelectorAll('.download-link')];
+  const bounds = links.map(link => link.getBoundingClientRect());
+  check(`${track.dataset.track}: WAV and MP3 share one row`, bounds.length === 2 && Math.abs(bounds[0].top - bounds[1].top) < 1 && bounds[0].right <= bounds[1].left);
+  check(`${track.dataset.track}: only one shared instrumental label`, track.querySelectorAll('.track-files .download-heading').length === 1 && links.every(link => !link.textContent.includes('伴奏')));
+  check(`${track.dataset.track}: download touch targets fit their columns`, links.every(link => link.getBoundingClientRect().height >= 44 && link.scrollWidth <= link.clientWidth));
+}
+function waitForCover(doc, id) {
+  return new Promise(resolve => {
+    const start = performance.now();
+    function checkImage() {
+      const image = doc.querySelector('#cover-image');
+      if (new URL(image.src).pathname.endsWith(`/covers/${id}.png`) && image.complete && image.naturalWidth > 0 && !image.hidden && doc.querySelector('#cover-surface').dataset.transitioning !== 'true') return resolve(true);
+      if (performance.now() - start > 4000) return resolve(false);
+      requestAnimationFrame(checkImage);
+    }
+    checkImage();
+  });
+}
+function waitForBlend(doc) {
+  return new Promise(resolve => {
+    const start = performance.now();
+    function sample() {
+      const images = [...doc.querySelectorAll('.cover-layer')];
+      const hasBlend = images.some(image => {
+        const opacity = Number(doc.defaultView.getComputedStyle(image).opacity);
+        return opacity > 0.2 && opacity < 0.8;
+      });
+      if (hasBlend) return resolve(true);
+      if (performance.now() - start > 2000) return resolve(false);
+      requestAnimationFrame(sample);
+    }
+    sample();
+  });
+}
+preview.addEventListener('load', async () => {
+  layoutCheck();
+  const doc = preview.contentDocument;
+  check('spaced header label', doc.querySelector('.site-name').textContent === '/ discography /');
+  check('release subtitle is removed', !doc.querySelector('.release-description'));
+  check('usage section and footer are removed', !doc.querySelector('.usage, #usage-copy, footer'));
+  check('removed navigation and headings stay absent', !doc.querySelector('.poem-link, .page-heading, .eyebrow, .catalog-note, [data-decode]'));
+  check('small cover title is removed', !doc.querySelector('figcaption').textContent.includes('独白'));
+  check('all three songs offer both WAV and MP3', doc.querySelectorAll('.download-link').length === 6 && !doc.querySelector('.pending') && [...doc.querySelectorAll('[data-track]')].every(track => [...track.querySelectorAll('.file-meta')].map(meta => meta.textContent.split(' / ')[0]).join(',') === 'WAV,MP3'));
+  const expectedFiles = [
+    { id: 'transparent-flower', name: '透明花_Inst.wav', bytes: 101536634 },
+    { id: 'circular-rain', name: '环形雨_Inst.wav', bytes: 74119930 },
+    { id: 'daydream', name: '白日梦_Inst.wav', bytes: 75701730 },
+    { id: 'transparent-flower', name: '透明花_Inst.mp3', bytes: 10537054 },
+    { id: 'circular-rain', name: '环形雨_Inst.mp3', bytes: 10242334 },
+    { id: 'daydream', name: '白日梦_Inst.mp3', bytes: 10461214 },
+  ];
+  for (const file of expectedFiles) {
+    const extension = file.name.split('.').pop();
+    const link = doc.querySelector(`[data-track="${file.id}"] .download-link[download="${file.name}"]`);
+    check(`${file.id} ${extension}: original download name and correct song file`, link && link.href.endsWith(`/audio/${file.id}-inst.${extension}`) && !link.hasAttribute('target'));
+    check(`${file.id} ${extension}: displayed size matches the source`, link?.querySelector('.file-meta').textContent === `${extension.toUpperCase()} / ${(file.bytes / 1000000).toFixed(1)} MB`);
+    try {
+      const response = await fetch(link.href, { method: 'HEAD' });
+      const expectedType = extension === 'mp3' ? /^audio\/mpeg(?:;|$)/ : /audio\/(?:x-)?wav(?:e)?/;
+      check(`${file.id} ${extension}: audio served successfully at its original size`, response.ok && Number(response.headers.get('content-length')) === file.bytes && expectedType.test(response.headers.get('content-type')));
+    } catch {
+      check(`${file.id} ${extension}: audio served successfully at its original size`, false);
+    }
+  }
+  check('audio is not eagerly loaded on page open', !doc.querySelector('audio, video, link[as="audio"]'));
+  check('transparent flower is the loaded default cover', await waitForCover(doc, 'transparent-flower'));
+  const coverBounds = doc.querySelector('.cover-surface').getBoundingClientRect();
+  const win = preview.contentWindow;
+  const trackList = doc.querySelector('#tracks');
+  const frameStyle = win.getComputedStyle(doc.querySelector('.cover-surface'));
+  check('frame has a subtle one-pixel border', frameStyle.borderTopWidth === '1px');
+  const innerFrameStyle = win.getComputedStyle(doc.querySelector('.cover-surface'), '::after');
+  check('second fine border frames the artwork', innerFrameStyle.borderTopWidth === '1px' && innerFrameStyle.content !== 'none');
+  check('both frame lines remain neutral gray', frameStyle.borderTopColor === 'rgb(237, 237, 237)' && innerFrameStyle.borderTopColor === 'rgb(228, 228, 228)');
+  check('page, frame mat and image backgrounds share pure white', [doc.documentElement, doc.body, doc.querySelector('.cover-surface'), doc.querySelector('#cover-image')].every(node => win.getComputedStyle(node).backgroundColor === 'rgb(255, 255, 255)'));
+  check('artwork has a small inner margin', doc.querySelector('#cover-image').getBoundingClientRect().left - coverBounds.left === 11);
+  if (!win.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    doc.querySelector('[data-track="circular-rain"]').dispatchEvent(new win.PointerEvent('pointerenter', { pointerType: 'mouse' }));
+    check('cover changes pass through a blended frame', await waitForBlend(doc));
+    check('an opaque base prevents a white flash', win.getComputedStyle(doc.querySelector('.cover-layer')).opacity === '1');
+    doc.querySelector('[data-track="daydream"]').dispatchEvent(new win.PointerEvent('pointerenter', { pointerType: 'mouse' }));
+    check('interrupted fade continues from a mixture', await waitForBlend(doc));
+    check('interrupted fade settles on the latest image', await waitForCover(doc, 'daydream'));
+    check('rapid changes reuse at most three image layers', doc.querySelectorAll('.cover-layer').length <= 3);
+  }
+  for (const id of ['circular-rain', 'daydream', 'transparent-flower']) {
+    doc.querySelector(`[data-track="${id}"]`).dispatchEvent(new win.PointerEvent('pointerenter', { pointerType: 'mouse' }));
+    check(`${id}: hover selects the corresponding image`, await waitForCover(doc, id));
+    const selectedCover = doc.querySelector('#cover-image');
+    const expectedSize = id === 'daydream' ? 1600 : 2000;
+    check(`${id}: supplied 2x PNG loads at full resolution`, selectedCover.naturalWidth === expectedSize && selectedCover.naturalHeight === expectedSize && new URL(selectedCover.src).searchParams.get('v') === '2x');
+    const bounds = doc.querySelector('.cover-surface').getBoundingClientRect();
+    check('switching covers does not shift layout', bounds.width === coverBounds.width && bounds.height === coverBounds.height);
+  }
+  for (const id of ['circular-rain', 'daydream', 'transparent-flower']) {
+    doc.querySelector(`[data-track="${id}"]`).dispatchEvent(new win.PointerEvent('pointerenter', { pointerType: 'mouse' }));
+  }
+  check('rapid pointer changes preserve the latest requested cover', await waitForCover(doc, 'transparent-flower'));
+  doc.querySelector('[data-track="circular-rain"] summary').focus();
+  check('keyboard focus selects cover', await waitForCover(doc, 'circular-rain'));
+  doc.querySelector('[data-track="daydream"] summary').click();
+  trackList.dispatchEvent(new win.PointerEvent('pointerleave', { pointerType: 'touch' }));
+  check('touch click keeps the selected cover after lifting finger', await waitForCover(doc, 'daydream'));
+  doc.querySelector('[data-track="daydream"]').open = false;
+  trackList.dispatchEvent(new win.PointerEvent('pointerleave', { pointerType: 'mouse' }));
+  check('leaving the track list restores the default cover', await waitForCover(doc, 'transparent-flower'));
+  for (const details of doc.querySelectorAll('details')) {
+    const summary = details.querySelector('summary');
+    summary.click();
+    check(`${summary.textContent.trim()}: opens`, details.open);
+    checkDownloadLayout(details);
+    summary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    check('Escape closes and restores focus', !details.open && doc.activeElement === summary);
+  }
+  doc.activeElement.blur();
+  trackList.dispatchEvent(new win.PointerEvent('pointerleave', { pointerType: 'mouse' }));
+  check('cover restored after interaction checks', await waitForCover(doc, 'transparent-flower'));
+});
+for (const button of document.querySelectorAll('[data-width]')) {
+  button.addEventListener('click', () => {
+    preview.style.width = `${button.dataset.width}px`;
+    requestAnimationFrame(layoutCheck);
+  });
+}
+(() => {
+  const config = {
+    cover: '', usage: '测试用途，不是正式授权。',
+    tracks: [
+      { id: 'daydream', title: '白日梦', files: [
+        { label: '本地下载测试', href: 'catalog.js', format: 'JS' },
+        { label: '外部链接测试', href: 'https://example.com/audio', external: true },
+        { label: '不安全链接', href: 'javascript:alert(1)' },
+      ] },
+      { id: 'circular-rain', title: '环形雨', files: [{ label: '空地址', href: '' }] },
+    ],
+  };
+  fixture.addEventListener('load', () => {
+    const doc = fixture.contentDocument;
+    // Isolate this configuration test from the real, supplied download links.
+    for (const container of doc.querySelectorAll('.track-files')) {
+      const pending = doc.createElement('p');
+      pending.className = 'pending';
+      pending.textContent = '伴奏文件待添加。';
+      container.replaceChildren(pending);
+    }
+    fixture.contentWindow.INST_CATALOG = config;
+    const script = doc.createElement('script');
+    script.src = '../discography/app.js';
+    script.addEventListener('load', () => {
+      const links = [...doc.querySelectorAll('.download-link')];
+      check('only valid, non-empty download URLs render', links.length === 2);
+      check('local file uses a download link', links[0]?.hasAttribute('download') && !links[0]?.hasAttribute('target'));
+      check('external page opens safely in a new tab', links[1]?.target === '_blank' && links[1]?.rel === 'noopener noreferrer');
+      check('empty track remains unavailable', doc.querySelector('[data-track="circular-rain"] .pending') !== null);
+      check('old usage configuration does not restore removed content', !doc.querySelector('#usage-copy, .usage'));
+    }, { once: true });
+    doc.body.append(script);
+  }, { once: true });
+  fixture.src = '../discography/';
+})();
+</script>
+</html>

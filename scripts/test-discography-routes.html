@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<title>Discography route checks</title>
+<style>
+  body { margin: 24px; font: 13px monospace; }
+  iframe { width: 402px; height: 900px; border: 1px solid #eee; }
+  pre { white-space: pre-wrap; }
+</style>
+<pre id="results">Checking…</pre>
+<iframe id="preview" title="Redirect destination preview"></iframe>
+<script>
+const output = document.querySelector('#results');
+const frame = document.querySelector('#preview');
+const lines = [];
+function check(label, condition) {
+  lines.push(`${condition ? 'PASS' : 'FAIL'} ${label}`);
+  output.textContent = lines.join('\n');
+}
+function loadRoute(path) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { frame.onload = null; reject(new Error(`Timed out: ${path}`)); }, 5000);
+    frame.onload = () => {
+      if (frame.contentWindow.location.pathname !== '/discography/') return;
+      clearTimeout(timer);
+      frame.onload = null;
+      resolve(frame.contentDocument);
+    };
+    frame.src = path;
+  });
+}
+(async () => {
+  try {
+    for (const [index, path] of ['/', '/inst/', '/inst/index.html', '/discography/'].entries()) {
+      const query = `?source=route-test&case=${index}`;
+      const doc = await loadRoute(`${path}${query}#tracks`);
+      const url = frame.contentWindow.location;
+      check(`${path} reaches /discography/`, url.pathname === '/discography/');
+      check(`${path} preserves query and anchor`, url.search === query && url.hash === '#tracks');
+      check(`${path} shows the actual discography`, doc.querySelector('#release-title')?.textContent === '独白' && doc.querySelectorAll('.download-link').length === 6);
+      check(`${path} has the new canonical address`, doc.querySelector('link[rel="canonical"]')?.href === 'https://tsukiyuki.work/discography/');
+    }
+    for (const path of ['/', '/inst/']) {
+      const response = await fetch(path);
+      const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+      check(`${path} has a no-JavaScript redirect and clickable fallback`, doc.querySelector('noscript meta[http-equiv="refresh"]')?.content === '0; url=/discography/' && doc.querySelector('a')?.getAttribute('href') === '/discography/');
+    }
+    const poem = await fetch('/log/');
+    check('the original poetry page remains available at /log/', poem.ok && (await poem.text()).includes('https://tsukiyuki.work/log/'));
+  } catch (error) {
+    check(error.message, false);
+  }
+})();
+</script>
+</html>

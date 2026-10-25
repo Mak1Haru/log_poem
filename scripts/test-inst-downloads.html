@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<title>Instrumental one-click download checks</title>
+<style>
+  body { margin: 24px; font: 13px monospace; }
+  iframe { width: 402px; height: 980px; border: 1px solid #eee; }
+  pre { white-space: pre-wrap; }
+</style>
+<pre id="results">Checking…</pre>
+<iframe id="preview" src="../discography/" title="Download behavior fixture"></iframe>
+<script>
+const output = document.querySelector('#results');
+const frame = document.querySelector('#preview');
+const lines = [];
+function check(label, condition) {
+  lines.push(`${condition ? 'PASS' : 'FAIL'} ${label}`);
+  output.textContent = lines.join('\n');
+}
+async function until(condition) {
+  const deadline = performance.now() + 3000;
+  while (!condition()) {
+    if (performance.now() > deadline) throw new Error('Timed out');
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+}
+frame.addEventListener('load', async () => {
+  const win = frame.contentWindow;
+  const doc = frame.contentDocument;
+  const pageURL = win.location.href;
+  const realFetch = win.fetch;
+  const realCreate = win.URL.createObjectURL;
+  const realRevoke = win.URL.revokeObjectURL;
+  const realSetTimeout = win.setTimeout;
+  const source = new Uint8Array([73, 68, 51, 0, 1, 2, 255]);
+  const saved = [];
+  const blobs = [];
+  const revoked = [];
+  const cleanup = [];
+  let requests = 0;
+  let resolveRequest;
+  win.URL.createObjectURL = blob => { blobs.push(blob); return realCreate.call(win.URL, blob); };
+  win.URL.revokeObjectURL = url => { revoked.push(url); realRevoke.call(win.URL, url); };
+  win.setTimeout = (callback, delay, ...args) => {
+    if (delay === 60000) { cleanup.push(callback); return 0; }
+    return realSetTimeout.call(win, callback, delay, ...args);
+  };
+  // Exercise real click handlers without creating disposable browser downloads.
+  const captureSave = event => {
+    const anchor = event.target.closest?.('a');
+    if (anchor?.href.startsWith('blob:')) {
+      event.preventDefault();
+      saved.push({ href: anchor.href, filename: anchor.download });
+    }
+  };
+  doc.addEventListener('click', captureSave, true);
+  const success = () => new win.Response(source, { headers: { 'content-type': 'audio/mpeg', 'content-length': String(source.length) } });
+  const links = [...doc.querySelectorAll('.download-link')];
+  const first = links.find(link => link.download === '透明花_Inst.mp3');
+  first.closest('details').open = true;
+  const filesArea = first.closest('.track-files');
+  const originalText = filesArea.textContent;
+  const originalCursor = win.getComputedStyle(first).cursor;
+  const visualChanges = [];
+  const observer = new win.MutationObserver(records => visualChanges.push(...records));
+  observer.observe(filesArea, { childList: true, characterData: true, subtree: true });
+  try {
+    win.fetch = () => { requests += 1; return new Promise(resolve => { resolveRequest = resolve; }); };
+    first.click();
+    first.click();
+    check('one click starts fetching; repeat clicks do not duplicate it', requests === 1);
+    check('pending state stays accessible without changing text, arrow or cursor', first.getAttribute('aria-busy') === 'true' && !doc.querySelector('.download-status') && filesArea.textContent === originalText && win.getComputedStyle(first).cursor === originalCursor);
+    check('click stays on the discography page', win.location.href === pageURL);
+    resolveRequest(success());
+    await until(() => !first.hasAttribute('aria-busy'));
+    check('completed file is saved as binary with the Chinese filename', saved[0]?.filename === '透明花_Inst.mp3' && blobs[0]?.type === 'application/octet-stream');
+    check('download bytes are unmodified', [...new Uint8Array(await blobs[0].arrayBuffer())].join(',') === [...source].join(','));
+    check('successful download clears the pending status without a success message', !doc.querySelector('.download-status'));
+    observer.disconnect();
+    check('no transient text or arrow changes during the entire download', visualChanges.length === 0 && filesArea.textContent === originalText);
+    check('temporary save anchor is removed', !doc.querySelector('a[href^="blob:"]'));
+    check('object URL stays valid for the browser handoff', cleanup.length === 1 && revoked.length === 0);
+
+    win.fetch = async () => success();
+    for (const link of links.filter(link => link !== first)) {
+      link.click();
+      await until(() => !link.hasAttribute('aria-busy'));
+    }
+    check('all six links save the correct original filename', saved.length === 6 && links.every(link => saved.some(item => item.filename === link.download)));
+    check('both formats leave no success message behind', !doc.querySelector('.download-status'));
+    check('all handoffs stay on the original page', win.location.href === pageURL);
+
+    const savedCount = saved.length;
+    win.fetch = async () => new win.Response('not found', { status: 404 });
+    first.click();
+    await until(() => !first.hasAttribute('aria-busy'));
+    check('404 shows an error without opening a player or saving an error page', saved.length === savedCount && win.location.href === pageURL && doc.querySelector('.download-status').textContent.includes('请重试'));
+    win.fetch = async () => { throw new TypeError('Network failure'); };
+    first.click();
+    await until(() => !first.hasAttribute('aria-busy'));
+    check('network error restores the clickable link', !first.hasAttribute('aria-disabled') && first.querySelector('.download-action').textContent === '↓' && saved.length === savedCount);
+    win.fetch = async () => new win.Response('<html>Missing file</html>', { headers: { 'content-type': 'text/html' } });
+    first.click();
+    await until(() => !first.hasAttribute('aria-busy'));
+    check('HTML error responses are not saved as audio', saved.length === savedCount);
+    win.fetch = async () => new win.Response(source, { headers: { 'content-length': '100' } });
+    first.click();
+    await until(() => !first.hasAttribute('aria-busy'));
+    check('incomplete files are not handed off', saved.length === savedCount);
+    win.fetch = async () => success();
+    first.click();
+    await until(() => !first.hasAttribute('aria-busy'));
+    check('retry after failure succeeds', saved.length === savedCount + 1);
+    cleanup.forEach(callback => callback());
+    check('all temporary object URLs are released after handoff', revoked.length === saved.length);
+  } catch (error) {
+    check(`unexpected error: ${error.message}`, false);
+  } finally {
+    observer.disconnect();
+    win.fetch = realFetch;
+    win.URL.createObjectURL = realCreate;
+    win.URL.revokeObjectURL = realRevoke;
+    win.setTimeout = realSetTimeout;
+    doc.removeEventListener('click', captureSave, true);
+  }
+});
+</script>
+</html>
